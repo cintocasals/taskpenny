@@ -1,0 +1,21 @@
+name: Add or re-tier a model
+description: Propose a model for the catalog, or a different tier for one.
+labels: [models]
+body:
+  - type: input
+    id: model
+    attributes:
+      label: Model id (as Vercel AI Gateway names it)
+      placeholder: provider/model-name
+    validations:
+      required: true
+  - type: input
+    id: tiers
+    attributes:
+      label: Tiers it should serve (1 basic to 4 critical)
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why (prices, benchmark results, experience)

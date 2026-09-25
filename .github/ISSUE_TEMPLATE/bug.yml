@@ -1,0 +1,21 @@
+name: Something does not work
+description: A wrong answer, an error, a wrong cost or a page that misbehaves.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: how
+    attributes:
+      label: How to see it again
+      description: The command or request, and `siac --version`. If you can, attach the run file from runs/ (check it has nothing private) or its `siac export` report.
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `siac doctor`
+      description: It shows key names only, never their values.
+      render: text

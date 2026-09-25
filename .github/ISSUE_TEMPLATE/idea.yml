@@ -1,0 +1,14 @@
+name: Idea
+description: Something SIAC could do better or new.
+labels: [idea]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would it let you do?
+    validations:
+      required: true
+  - type: textarea
+    id: how
+    attributes:
+      label: How you picture it (optional)

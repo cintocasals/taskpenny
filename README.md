@@ -103,25 +103,31 @@ volume. The compose file publishes the port on your machine only; if you open it
 request
   |
   v
-[gate]       Jev: split it? which tier (1-4)? what kind of task? what kind of answer?
+[gate]       Jev: split it? which tier (1-4)? what kind of work? what form of answer?
   |                                   |
-  | worth splitting                   | atomic task
+  | clearly worth splitting           | one task
   v                                   v
-[planner]    strong model          [router]    choice, yes/no or score -> Jev itself
-  subtasks with goal, prompt,                  anything else -> cheapest model for the tier
-  success criteria, answer type               |
-  and dependencies                            v
-  |                                 [executor]  result + hand-off notes for the next task
-  +-> each subtask goes back                  |
-      to the gate                             v
-                                    [verifier]  Jev: does it meet the criteria?
-                                              |  no -> retry, then one tier up (max 2)
-                                              v
-                                    [aggregator]  one answer, checked against the request
-                                              |
-                                              v
-                                    answer + cost receipt + full task tree
+[planner]    subtasks with prompt,  [router]    closed question -> Jev answers it
+  success criteria and                         anything else -> cheapest model of the tier
+  dependencies; each one goes                  |
+  back to the gate                             v
+  |                                 [worker]    result + notes for the tasks that depend on it
+  |                                            |
+  |                                            v
+  |                                 [check]     Jev: does it meet the criteria?
+  |                                            no -> repair, then one tier up (at most 2)
+  v
+[assembly]   an outline from a cheap model; the parts are stitched in, not rewritten
+  |
+  v
+[final check] Jev against the request; only what is missing gets written
+  |
+  v
+answer + cost receipt + full task tree
 ```
+
+Details, thresholds and fallbacks: [docs/how-it-works.md](docs/how-it-works.md). Every option and variable:
+[docs/configuration.md](docs/configuration.md).
 
 ## Why
 
