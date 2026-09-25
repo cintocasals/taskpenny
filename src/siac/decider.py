@@ -58,6 +58,7 @@ class Gate:
     usage: Usage
     latency_ms: int
     raised: bool = False  # tier went up one level because Jev was unsure
+    floored: bool = False  # tier went up to the minimum for this kind of task (models.yaml min_tier)
     probabilities: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -122,9 +123,12 @@ class Decider:
             tier, raised = min(4, tier_raw + 1), True
         ttype, _, _ = r.choice("task_type")
         ans, ans_c, _ = r.choice("answer")
+        floor = self.catalog.min_tier.get(ttype or "", 1)
+        floored = tier < floor
+        tier = max(tier, floor)
         return Gate(split_probability=split_p, tier=tier, tier_raw=tier_raw, tier_confidence=tier_c,
                     task_type=ttype or "analysis", answer_type=ans or "text", answer_confidence=ans_c,
-                    usage=r.usage, latency_ms=r.latency_ms, raised=raised,
+                    usage=r.usage, latency_ms=r.latency_ms, raised=raised, floored=floored,
                     probabilities={"tier": tier_p})
 
     def should_split(self, gate: Gate, request: str, depth: int, max_depth: int) -> bool:

@@ -21,8 +21,10 @@ NOTES_MARK = "HANDOFF NOTES:"
 PROBLEM_MARK = "PLAN PROBLEM:"
 FALLBACK_STATUS = {0, 402, 403, 404, 408, 429, 500, 502, 503, 504, 529}
 
-WORKER_ROOT = ("Do the task below completely and well. Answer in the language of the task. "
-               "Give only the answer, with no preamble about yourself.")
+WORKER_ROOT = ("Do the task below completely and well, as a careful expert would. Answer in the language of the task. "
+               "When it involves reasoning, calculation or code, show the key steps briefly and check the result "
+               "before giving it. Match the depth the request needs: short when it asks for something short, "
+               "with the explanation a reader needs when it does not. No preamble about yourself.")
 WORKER_SUB = ("You are one worker in a team that splits a big request into small tasks. Do exactly the task below, "
               "completely, in the language of the task. Output only the result. Then, on a new line, write "
               f"'{NOTES_MARK}' followed by up to 5 short bullet points with facts, decisions or warnings that later "
@@ -287,7 +289,7 @@ class Engine:
                 gate = await self.decider.gate(node.prompt)
                 self._spend(node, "decisions", gate.usage, self.catalog.decider.id)
                 node.gate = {"split": round(gate.split_probability, 3), "tier": gate.tier, "tier_raw": gate.tier_raw,
-                             "tier_confidence": gate.tier_confidence, "raised": gate.raised,
+                             "tier_confidence": gate.tier_confidence, "raised": gate.raised, "floored": gate.floored,
                              "task_type": gate.task_type, "answer_type": gate.answer_type}
                 node.tier = gate.tier
                 self._emit("gate", node, **node.gate, latency_ms=gate.latency_ms, cost=gate.usage.cost)

@@ -513,3 +513,11 @@ def test_local_models_go_first_and_keep_cloud_fallbacks(catalog, monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "o")
     gw, cat = connect(catalog)
     assert cat.decider.id == "openai/gpt-6-luna"  # a paid basic model decides, not the local one
+
+
+async def test_math_and_code_never_go_below_tier_2(catalog):
+    gw = ScriptedGateway(catalog, gate={"split": 0.1, "tier": ("1", 0.95), "task_type": "math", "answer": "text"})
+    res = await Engine(gw, catalog).run("What is 17% of 2,340?")
+    root = res.nodes["root"]
+    assert root["gate"]["tier_raw"] == 1 and root["gate"]["tier"] == 2 and root["gate"]["floored"]
+    assert root["model"] == catalog.pick(2).id

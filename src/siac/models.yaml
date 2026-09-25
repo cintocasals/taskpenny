@@ -30,6 +30,11 @@ tiers:
   3: { name: advanced, description: "Several steps, careful reasoning or a lot of context: analysing data or long documents, comparing options, debugging, plans, deliverables." }
   4: { name: critical, description: "Hard reasoning or high stakes: architecture, strategy, proofs, legal, money, health, security." }
 
+# Some kinds of work need at least this tier: the cheapest models slip on arithmetic, logic and code.
+min_tier:
+  math: 2
+  code: 2
+
 task_types:
   code: "Writing, reviewing or debugging code."
   writing: "Writing or rewriting text for people to read."

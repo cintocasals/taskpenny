@@ -185,7 +185,7 @@ const I18N = {
     history:"Saved runs", speed:"Replay speed", watch:"Watch", working:"working", fromApi:"from the API", replay:"Replay", open:"Open", export:"Export", treeEmpty:"Run a request to see how SIAC splits it and who does each part.",
     detailEmpty:"Click a task in the tree to see its prompt, the decisions about it and its result.", answerEmpty:"The answer appears here when the run ends.",
     noRuns:"No saved runs yet.", live:"LIVE", dryMode:"DRY RUN", prompt:"Prompt", result:"Result", notes:"Hand-off notes", problem:"Problem reported",
-    gate:"Jev decided", split:"split", tier:"tier", conf:"confidence", raised:"raised one tier (Jev unsure)", type:"task type", answerType:"answer",
+    gate:"Jev decided", split:"split", tier:"tier", conf:"confidence", raised:"raised one tier (Jev unsure)", floored:"minimum tier for this kind of task", type:"task type", answerType:"answer",
     model:"model", attempts:"attempts", cost:"cost", status:"status", waiting:"waiting", jev:"JEV", done:"done", failed:"failed", partial:"stopped early",
     footer:"SIAC · open source (MIT) · by Cinto Casals, SerIA Nativa. Decisions by Jev (TypeSafe AI) through Vercel AI Gateway. Keys stay on your computer.",
     legend:"Tier 1 basic to 4 critical: Jev picks it and SIAC uses the cheapest model of that tier. JEV: solved by Jev, no language model. Split %: how likely Jev thinks splitting helps. Check: how likely Jev thinks a result meets its criteria (0.6 passes). Gap filling: a cheap model adds only what the final check found missing.",
@@ -211,7 +211,7 @@ const I18N = {
     history:"Execucions desades", speed:"Velocitat de repetició", watch:"Segueix", working:"treballant", fromApi:"des de l'API", replay:"Repeteix", open:"Obre", export:"Exporta", treeEmpty:"Executa una petició per veure com SIAC la divideix i qui fa cada part.",
     detailEmpty:"Clica una tasca de l'arbre per veure'n el prompt, què se n'ha decidit i el resultat.", answerEmpty:"La resposta surt aquí quan acaba l'execució.",
     noRuns:"Encara no hi ha cap execució desada.", live:"EN VIU", dryMode:"SIMULACIÓ", prompt:"Prompt", result:"Resultat", notes:"Notes de traspàs", problem:"Problema detectat",
-    gate:"Jev ha decidit", split:"dividir", tier:"nivell", conf:"confiança", raised:"un nivell amunt (Jev dubtava)", type:"tipus de tasca", answerType:"resposta",
+    gate:"Jev ha decidit", split:"dividir", tier:"nivell", conf:"confiança", raised:"un nivell amunt (Jev dubtava)", floored:"nivell mínim per a aquest tipus de tasca", type:"tipus de tasca", answerType:"resposta",
     model:"model", attempts:"intents", cost:"cost", status:"estat", waiting:"en espera", jev:"JEV", done:"fet", failed:"fallat", partial:"aturat abans",
     footer:"SIAC · codi obert (MIT) · de Cinto Casals, SerIA Nativa. Decideix Jev (TypeSafe AI) per Vercel AI Gateway. Les claus no surten del teu ordinador.",
     legend:"Nivell 1 bàsic a 4 crític: el tria Jev i SIAC fa servir el model més barat d'aquest nivell. JEV: ho ha resolt Jev, sense model de llenguatge. Dividir %: com de probable veu Jev que dividir ajudi. Comprovació: com de probable veu Jev que el resultat compleixi el criteri (amb 0,6 passa). Complements: un model barat afegeix només el que la comprovació final troba a faltar.",
@@ -237,7 +237,7 @@ const I18N = {
     history:"Ejecuciones guardadas", speed:"Velocidad de repetición", watch:"Seguir", working:"trabajando", fromApi:"desde la API", replay:"Repetir", open:"Abrir", export:"Exportar", treeEmpty:"Ejecuta una petición para ver cómo SIAC la divide y quién hace cada parte.",
     detailEmpty:"Haz clic en una tarea del árbol para ver su prompt, lo que se ha decidido y el resultado.", answerEmpty:"La respuesta aparece aquí cuando termina la ejecución.",
     noRuns:"Todavía no hay ejecuciones guardadas.", live:"EN VIVO", dryMode:"SIMULACIÓN", prompt:"Prompt", result:"Resultado", notes:"Notas de traspaso", problem:"Problema detectado",
-    gate:"Jev ha decidido", split:"dividir", tier:"nivel", conf:"confianza", raised:"un nivel más (Jev dudaba)", type:"tipo de tarea", answerType:"respuesta",
+    gate:"Jev ha decidido", split:"dividir", tier:"nivel", conf:"confianza", raised:"un nivel más (Jev dudaba)", floored:"nivel mínimo para este tipo de tarea", type:"tipo de tarea", answerType:"respuesta",
     model:"modelo", attempts:"intentos", cost:"coste", status:"estado", waiting:"en espera", jev:"JEV", done:"hecho", failed:"fallado", partial:"parado antes",
     footer:"SIAC · código abierto (MIT) · de Cinto Casals, SerIA Nativa. Decide Jev (TypeSafe AI) vía Vercel AI Gateway. Las claves no salen de tu ordenador.",
     legend:"Nivel 1 básico a 4 crítico: lo elige Jev y SIAC usa el modelo más barato de ese nivel. JEV: lo ha resuelto Jev, sin modelo de lenguaje. Dividir %: lo probable que ve Jev que dividir ayude. Comprobación: lo probable que ve Jev que el resultado cumpla el criterio (con 0,6 pasa). Complementos: un modelo barato añade solo lo que la comprobación final echa en falta.",
@@ -344,7 +344,7 @@ function renderDetail(){
   const ty = k => (L.types && L.types[k]) || k;
   if (g) h += "<dt>" + esc(L.gate) + "</dt><dd><span title=\"" + esc(L.tipSplit) + "\">" + esc(L.split) + " " + (g.split * 100).toFixed(0) + "%</span> · <span title=\"" + esc(L.tipTier) + "\">" + esc(L.tier) + " " + g.tier_raw + "</span>" +
     (g.tier_confidence != null ? " <span title=\"" + esc(L.tipConf) + "\">(" + esc(L.conf) + " " + g.tier_confidence.toFixed(2) + ")</span>" : "") +
-    (g.raised ? " · " + esc(L.raised) : "") + " · " + esc(L.type) + " " + esc(ty(g.task_type)) + " · " + esc(L.answerType) + " " + esc(ty(g.answer_type)) + "</dd>";
+    (g.raised ? " · " + esc(L.raised) : "") + (g.floored ? " · " + esc(L.floored) : "") + " · " + esc(L.type) + " " + esc(ty(g.task_type)) + " · " + esc(L.answerType) + " " + esc(ty(g.answer_type)) + "</dd>";
   if (n.attempts && n.attempts.length) h += "<dt>" + esc(L.attempts) + "</dt><dd title=\"" + esc(L.tipCheck) + "\">" + n.attempts.map(a => esc(short(a.model)) + " · " + esc(L.tierL) + " " + a.tier + " → " + a.ok_probability).join(" · ") + "</dd>";
   h += "</dl>";
   if (n.prompt) h += '<div><div class="label">' + esc(L.prompt) + '</div><div class="box">' + esc(n.prompt) + "</div></div>";

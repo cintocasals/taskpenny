@@ -48,6 +48,7 @@ class Catalog:
     profiles: dict[str, list[str]] = field(default_factory=dict)
     source: str = ""
     reachable: frozenset[str] | None = None  # providers the current keys reach; None: all of them
+    min_tier: dict[str, int] = field(default_factory=dict)  # task type -> lowest tier allowed
     decider_label: str = ""
 
     # ------------------------------------------------------------------ loading
@@ -95,6 +96,7 @@ class Catalog:
             profiles={k: list(v) for k, v in (data.get("profiles") or {}).items()},
             planner_light=data.get("planner_light") or data["planner"],
             source=source,
+            min_tier={str(k): int(v) for k, v in (data.get("min_tier") or {}).items()},
         )
 
     # ------------------------------------------------------------------ queries
