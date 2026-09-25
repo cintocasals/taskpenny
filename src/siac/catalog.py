@@ -127,19 +127,23 @@ class Catalog:
         raise NoModelError(f"no model for tier {tier} with profile {profile!r}")
 
     def chain(self, tier: int, profile: str = "all", *, vision: bool = False, min_context: int = 0,
-              length: int = 3) -> list[Model]:
-        """The cheapest model for the tier first, then the other models of that tier, then higher tiers.
-        Used as a fallback list when a provider refuses or fails."""
+              length: int = 3, max_ratio: float = 1.5) -> list[Model]:
+        """Fallback list for when a provider refuses or fails: the cheapest model of the tier first, then other
+        models of the same tier that cost at most `max_ratio` times as much, then the best of the lower tiers.
+        A fallback never costs much more than the first choice."""
         providers = self.providers(profile)
-        out: list[Model] = []
-        for t in range(max(1, tier), 5):
-            for m in self.candidates(t, providers, vision=vision, min_context=min_context):
+        first = self.pick(tier, profile, vision=vision, min_context=min_context)
+        real_tier = next(t for t in range(max(1, tier), 5) if first in self.candidates(t, providers, vision=vision,
+                                                                                     min_context=min_context))
+        out = [first]
+        ceiling = first.typical_cost * max_ratio
+        for m in self.candidates(real_tier, providers, vision=vision, min_context=min_context)[1:]:
+            if m.typical_cost <= ceiling and m not in out:
+                out.append(m)
+        for t in range(real_tier - 1, 0, -1):
+            for m in self.candidates(t, providers, vision=vision, min_context=min_context)[:1]:
                 if m not in out:
                     out.append(m)
-            if len(out) >= length:
-                break
-        if not out:
-            raise NoModelError(f"no model for tier {tier} with profile {profile!r}")
         return out[:length]
 
     def pick_named(self, model_id: str, profile: str = "all", fallback_tier: int = 3) -> Model:

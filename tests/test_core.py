@@ -58,6 +58,10 @@ class ScriptedGateway:
         system = messages[0]["content"]
         if system.startswith("You are the planner"):
             out = json.dumps(self.plan)
+        elif system.startswith("You assemble"):
+            out = self.outline if hasattr(self, "outline") else '{"intro": "", "sections": [], "outro": ""}'
+        elif system.startswith("You check a finished answer"):
+            out = getattr(self, "gap", "NOTHING MISSING")
         elif "Allowed answers" in messages[-1]["content"]:
             out = "2: b"
         else:
@@ -175,8 +179,10 @@ async def test_split_runs_subtasks_and_jev_solves_choices(catalog):
                       "items": [{"id": "1", "text": "first"}, {"id": "2", "text": "second"}]}},
         {"id": "t3", "title": "Polish", "prompt": "polish the draft", "depends_on": ["t1"]},
     ], "assembly": "join"}
-    gw = ScriptedGateway(catalog, gate={"split": 0.9, "tier": ("3", 0.9), "task_type": "writing", "answer": "text"},
+    gw = ScriptedGateway(catalog, gate={"split": 0.95, "tier": ("3", 0.9), "task_type": "writing", "answer": "text"},
                          plan=plan, solve={"second": ("b", 0.3)})
+    gw.outline = json.dumps({"intro": "Here it is.", "sections": [{"from": "t3", "heading": "Final draft"},
+                                                                  {"from": "t2", "heading": "Types"}], "outro": ""})
     events = []
     res = await Engine(gw, catalog, on_event=events.append).run("A long request. " * 20)
     assert res.status == "done"
@@ -190,6 +196,10 @@ async def test_split_runs_subtasks_and_jev_solves_choices(catalog):
     t3_start = next(e["t"] for e in events if e["type"] == "node_started" and e["node"] == "t3")
     assert t3_start >= t1_done
     assert gw.chats[0] == "anthropic/claude-sonnet-5"  # the planner
+    # the answer is stitched from the untouched results, in the outline's order
+    ans = res.answer
+    assert ans.startswith("Here it is.") and ans.index("## Final draft") < ans.index("## Types")
+    assert "## Draft" not in ans  # t1 left out by the outline
 
 
 async def test_budget_stops_the_run(catalog):
@@ -237,11 +247,50 @@ async def test_refused_model_falls_back_to_next_in_tier(catalog):
     events = []
     res = await Engine(gw, catalog, on_event=events.append).run("A high-stakes decision")
     assert res.status == "done"
-    assert gw.chats == ["anthropic/claude-opus-5.5", "openai/gpt-6-astra"]
-    assert res.nodes["root"]["model"] == "openai/gpt-6-astra"
+    assert gw.chats == ["anthropic/claude-opus-5.5", "anthropic/claude-sonnet-5"]
+    assert res.nodes["root"]["model"] == "anthropic/claude-sonnet-5"
     assert any(e["type"] == "model_fallback" for e in events)
 
 
 def test_chain_order(catalog):
-    assert [m.id for m in catalog.chain(4)] == ["anthropic/claude-opus-5.5", "openai/gpt-6-astra"]
+    # A fallback never costs much more than the first choice: Opus -> Sonnet (tier below), never GPT-6 Astra.
+    assert [m.id for m in catalog.chain(4)] == ["anthropic/claude-opus-5.5", "anthropic/claude-sonnet-5",
+                                                "deepseek/deepseek-v4.1-flash"]
     assert [m.id for m in catalog.chain(3)][:2] == ["anthropic/claude-sonnet-5", "openai/gpt-6-sol"]
+
+
+def test_stitch_falls_back_to_plan_order():
+    from siac.engine import Node, stitch
+    kids = [Node(id="t1", title="One", prompt="", depth=1, result="first"),
+            Node(id="t2", title="Two", prompt="", depth=1, result="second")]
+    assert stitch("not json", kids) == "## One\n\nfirst\n\n## Two\n\nsecond"
+
+
+async def test_split_needs_a_list_or_high_confidence(catalog):
+    from siac.decider import Decider
+    d = Decider(ScriptedGateway(catalog), catalog)
+    g = await d.gate("x")
+    g.tier_raw, g.split_probability = 3, 0.8
+    one_piece = "Analyse why our trading bot lost money for four weeks and tell me whether to stop it. " * 3
+    listed = "Do these: 1) write the plan, 2) write the email, 3) list the risks. " * 3
+    assert not d.should_split(g, one_piece, 0, 3)
+    assert d.should_split(g, listed, 0, 3)
+    g.split_probability = 0.95
+    assert d.should_split(g, one_piece, 0, 3)
+
+
+async def test_gap_filler_appends_missing_part(catalog):
+    plan = {"subtasks": [{"id": "t1", "title": "A", "prompt": "do a"}, {"id": "t2", "title": "B", "prompt": "do b"}]}
+    gw = ScriptedGateway(catalog, gate={"split": 0.95, "tier": ("3", 0.9), "task_type": "writing", "answer": "text"},
+                         plan=plan, verify=[0.95, 0.95, 0.1])
+    gw.gap = "## Missing\nThe part that was missing."
+    res = await Engine(gw, catalog).run("Please do all of this: 1) a thing, 2) another thing. " * 5)
+    assert res.answer.endswith("The part that was missing.")
+
+
+async def test_parallel_calls_cannot_overshoot_the_budget(catalog):
+    plan = {"subtasks": [{"id": f"t{i}", "title": str(i), "prompt": f"do {i}"} for i in range(1, 9)]}
+    gw = ScriptedGateway(catalog, gate={"split": 0.95, "tier": ("3", 0.9), "task_type": "writing", "answer": "text"},
+                         plan=plan)
+    res = await Engine(gw, catalog, limits=Limits(max_cost=0.08)).run("List: 1) a, 2) b, 3) c. " * 10)
+    assert res.receipt["total_cost"] <= 0.08

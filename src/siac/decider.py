@@ -8,6 +8,7 @@ language of the request.
 from __future__ import annotations
 
 import asyncio
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -31,6 +32,14 @@ SPLIT_CRITERIA = {
 }
 
 MAX_STATE_CHARS = 60_000  # Jev reads up to about 32k tokens of state; keep a wide margin.
+
+
+LIST_MARK = re.compile(r"(?:^|\s)(?:\d{1,2}[).]|[a-z][).]|[-*\u2022])\s+\S", re.M)
+
+
+def has_parts(text: str) -> bool:
+    """At least two numbered, lettered or bulleted items: a visible list of separate parts."""
+    return len(LIST_MARK.findall(text)) >= 2
 
 
 def clip(text: str, limit: int = MAX_STATE_CHARS) -> str:
@@ -63,6 +72,9 @@ class Settings:
     decision_confidence_min: float = 0.6  # below this, a choice task goes to a language model instead
     verify_pass: float = 0.6            # probability that a result meets its criteria to accept it
     min_split_chars: int = 160          # shorter requests are never split
+    split_min: float = 0.7              # Jev's probability needed to split a request with a list of parts
+    split_sure: float = 0.9             # ... or to split one without a visible list of parts
+    final_pass: float = 0.4             # the final answer only gets a gap-filling pass below this
 
 
 class Decider:
@@ -112,13 +124,16 @@ class Decider:
                     probabilities={"tier": tier_p})
 
     def should_split(self, gate: Gate, request: str, depth: int, max_depth: int) -> bool:
+        """Split only when it can pay off: never deep, short or trivial requests; and Jev must be clearly sure,
+        or fairly sure and the request shows a list of separate parts (numbered items or bullets)."""
         if depth >= max_depth:
             return False
         if len(request) < self.s.min_split_chars:
             return False
         if gate.tier_raw <= 1:  # a trivial task costs more to plan than to do
             return False
-        return gate.split
+        p = gate.split_probability
+        return p >= self.s.split_sure or (p >= self.s.split_min and has_parts(request))
 
     # ------------------------------------------------- Jev as executor (idea 18)
     async def solve(self, spec: dict) -> dict:

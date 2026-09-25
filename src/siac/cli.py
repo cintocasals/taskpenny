@@ -184,6 +184,13 @@ def main(argv: list[str] | None = None) -> int:
     run_opts(r)
     d = sub.add_parser("demo", help="see SIAC work on a sample request, without a key")
     run_opts(d)
+    u = sub.add_parser("ui", help="open the live task tree in your browser")
+    u.add_argument("--port", type=int, default=8765)
+    u.add_argument("--host", default="127.0.0.1")
+    u.add_argument("--dry-run", action="store_true", help="simulated models by default")
+    u.add_argument("--no-browser", action="store_true")
+    u.add_argument("--models", help="path to a models.yaml of your own")
+    u.add_argument("--save-dir", default=os.environ.get("SIAC_RUNS_DIR", "runs"))
     m = sub.add_parser("models", help="show the model catalog")
     m.add_argument("--models", help="path to a models.yaml of your own")
     m.add_argument("--check", action="store_true", help="compare prices with the live Vercel catalog")
@@ -191,6 +198,11 @@ def main(argv: list[str] | None = None) -> int:
     args = p.parse_args(argv)
     if args.cmd == "models":
         return _models(args)
+    if args.cmd == "ui":
+        from .server import serve
+        serve(args.host, args.port, runs_dir=args.save_dir, dry_run=args.dry_run, models=args.models,
+              open_browser=not args.no_browser)
+        return 0
     if args.cmd == "demo":
         args.dry_run, args.file, prompt = True, None, DEMO_PROMPT
     else:

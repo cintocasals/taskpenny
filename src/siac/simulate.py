@@ -17,6 +17,7 @@ from .gateway import ChatResult, EvalResult, Usage
 
 NUMBERED = re.compile(r"(?:^|\s)(\d{1,2})[).]\s+(.+?)(?=(?:\s\d{1,2}[).]\s)|$)", re.S)
 CHOICE_HINTS = ("positive, negative", "positiva, negativa", "queja, una pregunta", "bug report", " o ", " or ")
+FILLER = "This simulated text stands in for the real answer, so the cost receipt has a realistic length. "
 T4 = ("security", "seguridad", "legal", "préstamo", "loan", "architecture", "trading", "bot", "risk", "riesgo",
       "database for", "servidor")
 
@@ -94,14 +95,15 @@ class SimulatedGateway:
         if system.startswith("You are the planner"):
             out = self._plan(user)
         elif system.startswith("You write the final answer"):
-            out = "[Simulated final answer written by " + model + "]\n\n" + "\n".join(
-                line for line in user.splitlines() if line.startswith("### "))
+            heads = [line[4:] for line in user.splitlines() if line.startswith("### ")] or ["Answer"]
+            out = "[Simulated final answer written by " + model + "]\n\n" + "\n\n".join(
+                f"## {h}\n{FILLER * 6}" for h in heads)
         elif "Allowed answers" in user:
             out = "\n".join(f"{m.group(1)}: " + user.split("Allowed answers: ")[1].split(",")[0].strip(" .")
                             for m in re.finditer(r"^([\w.-]+): ", user, re.M))
         else:
             first = user.strip().splitlines()[0][:90] if user.strip() else ""
-            out = f"[Simulated answer from {model}] {first}"
+            out = f"[Simulated answer from {model}] {first}\n{FILLER * 8}"
             if system.startswith("You are one worker"):
                 out += "\nHANDOFF NOTES:\n- simulated note"
         tin = sum(_tokens(m["content"]) for m in messages)

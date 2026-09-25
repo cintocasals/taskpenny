@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Run the development cases through SIAC and compare Jev's gate with the expected answers.
 
-Usage: python bench/run_dev.py [--dry-run] [--only en01,ca02] [--parallel 3] [--max-cost 0.3]
-Writes bench/results/dev-<time>.json and a Markdown summary next to it.
+Usage: python bench/run_dev.py [--dry-run] [--only en01,ca02] [--parallel 2] [--max-cost 0.10] [--total-budget 0.50]
+Each case is appended to bench/results/dev-<tag>-<time>.jsonl as soon as it ends; a Markdown summary follows.
+The whole run stops starting new cases once --total-budget is spent.
 """
 import argparse
 import asyncio
@@ -74,8 +75,9 @@ async def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--only")
-    ap.add_argument("--parallel", type=int, default=3)
-    ap.add_argument("--max-cost", type=float, default=0.30)
+    ap.add_argument("--parallel", type=int, default=2)
+    ap.add_argument("--max-cost", type=float, default=0.10, help="budget per case, USD")
+    ap.add_argument("--total-budget", type=float, default=0.50, help="stop starting cases after this, USD")
     args = ap.parse_args()
     cases = [json.loads(l) for l in (HERE / "dev_cases.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
     if args.only:
@@ -84,20 +86,31 @@ async def main():
     catalog = Catalog.load()
     gw = SimulatedGateway(catalog, latency=(0, 0.01)) if args.dry_run else Gateway(catalog=catalog)
     sem = asyncio.Semaphore(args.parallel)
-
-    async def guarded(c):
-        async with sem:
-            r = await one(c, catalog, gw, args)
-            print(f"{r['id']}: {r['kind']:<5} tier {r['tier_used']} cost ${r['cost']:.4f} {r['seconds']}s {r['status']}",
-                  flush=True)
-            return r
-    rows = await asyncio.gather(*(guarded(c) for c in cases))
-    await gw.aclose()
     out = HERE / "results"
     out.mkdir(exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M")
     tag = "dry" if args.dry_run else "live"
-    (out / f"dev-{tag}-{stamp}.json").write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
+    jl = out / f"dev-{tag}-{stamp}.jsonl"
+    spent = {"usd": 0.0, "reserved": 0.0}
+
+    async def guarded(c):
+        async with sem:
+            if spent["usd"] + spent["reserved"] + args.max_cost > args.total_budget:
+                print(f"{c['id']}: skipped (total budget ${args.total_budget:.2f} reached)", flush=True)
+                return None
+            spent["reserved"] += args.max_cost
+            try:
+                r = await one(c, catalog, gw, args)
+            finally:
+                spent["reserved"] -= args.max_cost
+            spent["usd"] += r["cost"]
+            with jl.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(r, ensure_ascii=False) + "\n")
+            print(f"{r['id']}: {r['kind']:<5} tier {r['tier_used']} cost ${r['cost']:.4f} {r['seconds']}s {r['status']}"
+                  f"  (total ${spent['usd']:.3f})", flush=True)
+            return r
+    rows = [r for r in await asyncio.gather(*(guarded(c) for c in cases)) if r]
+    await gw.aclose()
     md = summary(rows)
     (out / f"dev-{tag}-{stamp}.md").write_text(md, encoding="utf-8")
     print(md)

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 import time
 import uuid
@@ -26,9 +27,16 @@ WORKER_SUB = ("You are one worker in a team that splits a big request into small
               "completely, in the language of the task. Output only the result. Then, on a new line, write "
               f"'{NOTES_MARK}' followed by up to 5 short bullet points with facts, decisions or warnings that later "
               f"tasks must know. If the task cannot be done as planned, write '{PROBLEM_MARK}' and explain why.")
-AGGREGATOR = ("You write the final answer to a request, using results that a team has already produced. "
-              "Follow the assembly instructions. Keep the language of the request. Do not mention the team, the "
-              "sub-tasks or the process: the reader only sees the final answer.")
+AGGREGATOR = ("You assemble the final answer to a request from results a team has already written. Do not rewrite "
+              "the results: choose which ones answer the request, their order and a heading for each. Reply with "
+              "JSON only: {\"intro\": \"one or two sentences for the reader, in the language of the request, or empty\", "
+              "\"sections\": [{\"from\": \"result id\", \"heading\": \"heading in the language of the request\"}], "
+              "\"outro\": \"one closing sentence or empty\"}. Never mention the team, the sub-tasks or the process.")
+GAP_FILLER = ("You check a finished answer against the request. If the answer misses something the request asks for, "
+              "write ONLY the missing part, with its own short heading, in the language of the request. If nothing is "
+              "missing, reply exactly: NOTHING MISSING")
+REWRITE = ("You write the final answer to a request, using results a team has already produced. Keep the language "
+           "of the request. Do not mention the team, the sub-tasks or the process.")
 
 
 class BudgetExceeded(RuntimeError):
@@ -43,6 +51,7 @@ class Limits:
     max_repairs: int = 2
     max_parallel: int = 4
     worker_max_tokens: int = 6000
+    subtask_max_tokens: int = 4000
 
 
 @dataclass
@@ -100,6 +109,34 @@ def split_notes(text: str) -> tuple[str, str, str]:
     return text.strip(), notes, problem
 
 
+def stitch(outline_text: str, kids: list[Node], level: int = 2) -> str:
+    """Build the final answer from the aggregator's outline and the untouched sub-task results."""
+    by_id = {k.id.split(".")[-1]: k for k in kids}
+    by_id.update({k.id: k for k in kids})
+    hashes = "#" * level
+    try:
+        start, end = outline_text.find("{"), outline_text.rfind("}")
+        outline = json.loads(outline_text[start:end + 1])
+        sections = [s for s in outline.get("sections", []) if isinstance(s, dict) and str(s.get("from")) in by_id]
+    except (ValueError, AttributeError):
+        outline, sections = {}, []
+    if not sections:  # no usable outline: every result, in plan order, under its title
+        sections = [{"from": k.id, "heading": k.title} for k in kids]
+    used, parts = set(), []
+    if str(outline.get("intro") or "").strip():
+        parts.append(str(outline["intro"]).strip())
+    for s in sections:
+        k = by_id[str(s["from"])]
+        if k.id in used or not k.result:
+            continue
+        used.add(k.id)
+        heading = str(s.get("heading") or k.title).strip()
+        parts.append(f"{hashes} {heading}\n\n{k.result.strip()}")
+    if str(outline.get("outro") or "").strip():
+        parts.append(str(outline["outro"]).strip())
+    return "\n\n".join(parts)
+
+
 def estimate_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
@@ -142,13 +179,16 @@ class Engine:
         self.tokens_out += usage.tokens_out
         self.by_model[model] = self.by_model.get(model, 0.0) + usage.cost
 
-    def _check_budget(self, model_id: str, tokens_in: int, tokens_out: int) -> None:
+    def _check_budget(self, model_id: str, tokens_in: int, tokens_out: int) -> float:
+        """Reserve the estimated cost of a call before making it, so parallel calls cannot overshoot together."""
         try:
             est = self.catalog.get(model_id).cost(tokens_in, tokens_out)
         except KeyError:
             est = 0.0
-        if self.cost + est > self.limits.max_cost:
+        if self.cost + self.reserved + est > self.limits.max_cost:
             raise BudgetExceeded(f"budget of ${self.limits.max_cost:.2f} reached (spent ${self.cost:.4f})")
+        self.reserved += est
+        return est
 
     async def _chat(self, node: Node, role: str, model: str | list[str], system: str, user: str,
                     max_tokens: int) -> str:
@@ -156,18 +196,20 @@ class Engine:
         models = [model] if isinstance(model, str) else list(model)
         last: GatewayError | None = None
         for i, m in enumerate(models):
-            self._check_budget(m, estimate_tokens(system + user), max_tokens // 3)
+            est = self._check_budget(m, estimate_tokens(system + user), max_tokens // 2)
             try:
                 async with self._sem:
                     r = await self.gw.chat(m, [{"role": "system", "content": system},
                                                {"role": "user", "content": user}], max_tokens=max_tokens)
             except GatewayError as e:
+                self.reserved -= est
                 last = e
                 if e.status in FALLBACK_STATUS and i + 1 < len(models):
                     self._emit("model_fallback", node, model=m, next=models[i + 1], status=e.status,
                                message=str(e)[:200])
                     continue
                 raise
+            self.reserved -= est
             if m != models[0]:
                 node.model = m
             self._spend(node, role, r.usage, m)
@@ -183,6 +225,7 @@ class Engine:
         self.events: list[dict] = []
         self.nodes: dict[str, Node] = {}
         self.cost, self.calls, self.tokens_in, self.tokens_out = 0.0, 0, 0, 0
+        self.reserved = 0.0
         self.by_role: dict[str, float] = {}
         self.by_model: dict[str, float] = {}
         run_id = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
@@ -206,7 +249,8 @@ class Engine:
         if status == "done" and root.status != "done":
             status = "partial"
         receipt = self._receipt(request, answer)
-        self._emit("run_done", root, status=status, cost=round(self.cost, 6), receipt=receipt)
+        self._emit("run_done", root, status=status, cost=round(self.cost, 6), receipt=receipt, answer=answer[:30000],
+                   error=error)
         return RunResult(id=run_id, request=request, answer=answer, status=status,
                          nodes={k: asdict(v) for k, v in self.nodes.items()}, events=self.events,
                          receipt=receipt, started_at=started,
@@ -218,7 +262,9 @@ class Engine:
 
     async def _process(self, node: Node, context: str) -> None:
         node.status, node.started = "running", time.perf_counter() - self._t0
-        self._emit("node_started", node, title=node.title, depth=node.depth, parent=node.parent)
+        self._emit("node_started", node, title=node.title, depth=node.depth, parent=node.parent,
+                   prompt=node.prompt[:3000], criteria=node.criteria[:500], answer_type=node.answer_type,
+                   jev=bool(node.decision), depends_on=node.depends_on)
         try:
             if node.decision:  # a closed question written by the planner: Jev answers it (idea 18)
                 await self._solve_with_jev(node)
@@ -247,13 +293,17 @@ class Engine:
         finally:
             node.ended = time.perf_counter() - self._t0
             self._emit("node_done", node, status=node.status, model=node.model, tier=node.tier,
-                       cost=round(node.cost, 6), kind=node.kind)
+                       cost=round(node.cost, 6), kind=node.kind, result=node.result[:6000],
+                       notes=node.notes[:1500], problem=node.problem[:500], attempts=node.attempts)
 
     # ------------------------------------------------------------ split path
     async def _split(self, node: Node, gate: Gate, context: str) -> None:
         node.kind = "split"
-        self._check_budget(self.planner.model, estimate_tokens(node.prompt) + 900, 1500)
-        plan: Plan = await self.planner.plan(node.prompt, context)
+        est = self._check_budget(self.planner.model, estimate_tokens(node.prompt) + 900, 2000)
+        try:
+            plan: Plan = await self.planner.plan(node.prompt, context)
+        finally:
+            self.reserved -= est
         self._spend(node, "planning", plan.usage, plan.model)
         prefix = "" if node.id == "root" else node.id + "."
         kids = []
@@ -297,20 +347,23 @@ class Engine:
         return "\n\n".join(parts)
 
     async def _aggregate(self, node: Node, gate: Gate, kids: list[Node], assembly: str) -> None:
-        chain = [m.id for m in self.catalog.chain(max(2, gate.tier), self.profile)]
-        model = chain[0]
-        node.model = model
-        results = []
+        """A cheap model decides order, headings, a short intro and outro; the code stitches the results.
+        The results are not rewritten, so assembling costs a few hundred output tokens, not thousands."""
+        chain = [m.id for m in self.catalog.chain(2, self.profile)]
+        node.model = chain[0]
+        listing = []
         for k in kids:
-            block = f"### {k.title}\n{k.result or '(no result)'}"
+            block = f"[{k.id.split('.')[-1]}] {k.title}\n{k.result[:1500] or '(no result)'}"
             if k.problem:
                 block += f"\n(Problem reported: {k.problem})"
-            results.append(block)
-        user = (f"REQUEST:\n{node.prompt}\n\nASSEMBLY INSTRUCTIONS:\n{assembly}\n\nRESULTS:\n" + "\n\n".join(results))
-        self._emit("aggregate", node, model=model)
-        node.result = (await self._chat(node, "assembly", chain, AGGREGATOR, user, self.limits.worker_max_tokens)).strip()
+            listing.append(block)
+        user = (f"REQUEST:\n{node.prompt}\n\nASSEMBLY INSTRUCTIONS:\n{assembly}\n\n"
+                "RESULTS (shortened; ids in brackets):\n" + "\n\n".join(listing))
+        self._emit("aggregate", node, model=chain[0])
+        text = await self._chat(node, "assembly", chain, AGGREGATOR, user, 1500)
+        node.result = stitch(text, kids, level=2 if node.id == "root" else 3)
 
-    # ------------------------------------------------------ atomic path (LLM)
+    # ------------------------------------------------------ atomic path (LLM)    # ------------------------------------------------------ atomic path (LLM)
     async def _execute(self, node: Node, gate: Gate, context: str) -> None:
         node.kind = "llm"
         tier = gate.tier
@@ -324,7 +377,8 @@ class Engine:
             model = chain[0]
             node.model, node.tier = model, tier
             self._emit("route", node, model=model, tier=tier, attempt=attempt + 1)
-            text = await self._chat(node, "work", chain, system, user + feedback, self.limits.worker_max_tokens)
+            max_out = self.limits.worker_max_tokens if node.id == "root" else self.limits.subtask_max_tokens
+            text = await self._chat(node, "work", chain, system, user + feedback, max_out)
             model = node.model
             result, notes, problem = split_notes(text)
             node.result, node.notes, node.problem = result, notes, problem
@@ -376,18 +430,16 @@ class Engine:
             return  # an atomic answer was already verified against the request
         p, usage, ms = await self.decider.final_check(request, root.result)
         self._spend(root, "checks", usage, self.catalog.decider.id)
-        ok = p >= self.decider.s.verify_pass
+        ok = p >= self.decider.s.final_pass
         self._emit("final_check", root, ok=ok, probability=round(p, 3), cost=usage.cost)
         if ok:
             return
-        tier = min(4, (root.tier or 3) + 1)
-        chain = [m.id for m in self.catalog.chain(tier, self.profile)]
-        model = chain[0]
-        user = (f"REQUEST:\n{request}\n\nDRAFT ANSWER:\n{root.result}\n\nA reviewer found the draft does not fully "
-                "answer the request. Rewrite it so that it answers everything, keeping what is good.")
-        self._emit("repair", root, next_attempt=2, tier_up=True, model=model)
-        root.model = model
-        root.result = (await self._chat(root, "assembly", chain, AGGREGATOR, user, self.limits.worker_max_tokens)).strip()
+        chain = [m.id for m in self.catalog.chain(2, self.profile)]
+        self._emit("repair", root, next_attempt=2, tier_up=False, model=chain[0], gap_fill=True)
+        user = f"REQUEST:\n{request}\n\nANSWER:\n{root.result}"
+        extra = (await self._chat(root, "assembly", chain, GAP_FILLER, user, 2500)).strip()
+        if extra and "NOTHING MISSING" not in extra.upper():
+            root.result = root.result.rstrip() + "\n\n" + extra
 
     # ---------------------------------------------------------------- receipt
     def _partial_answer(self) -> str:

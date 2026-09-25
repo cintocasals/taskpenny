@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SIAC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#F4F2ED; --panel:#FAF9F5; --ink:#12161A; --lead:#6E767C; --line:#DCD9D2; --soft:#E9E6DF;
+  --oxide:#C1440E; --on-ink:#F4F2ED;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#0B0E11; --panel:#12161A; --ink:#ECE9E2; --lead:#9AA1A6; --line:#2A3036; --soft:#1B2026; --oxide:#E0612A; --on-ink:#0B0E11; color-scheme:dark}
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5}
+.wrap{max-width:1280px;margin:0 auto;padding:20px 16px 64px;display:grid;gap:24px}
+.mono{font-family:var(--mono)}
+.label{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--lead)}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 20px;border-bottom:1px solid var(--ink);padding-bottom:12px}
+.brand{font-family:var(--mono);font-weight:600;font-size:22px;letter-spacing:.08em}
+.tag{color:var(--lead);flex:1 1 320px}
+.mode{font-family:var(--mono);font-size:11px;letter-spacing:.12em;border:1px solid var(--ink);padding:2px 8px;border-radius:2px}
+select,input,textarea,button{font:inherit;color:inherit}
+select,input[type=number]{background:var(--panel);border:1px solid var(--line);border-radius:2px;padding:4px 6px}
+textarea{width:100%;min-height:110px;resize:vertical;background:var(--panel);border:1px solid var(--line);border-radius:2px;padding:12px;line-height:1.5}
+textarea:focus,select:focus,input:focus{outline:2px solid var(--ink);outline-offset:1px}
+button{cursor:pointer;border-radius:2px}
+.btn{background:var(--ink);color:var(--on-ink);border:1px solid var(--ink);padding:8px 18px;font-weight:600}
+.btn:disabled{opacity:.5;cursor:default}
+.ghost{background:transparent;border:1px solid var(--line);padding:4px 10px;font-size:13px}
+.ghost:hover,.btn:hover:not(:disabled){outline:1px solid var(--ink)}
+.compose{display:grid;gap:10px}
+.opts{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;font-size:13px;color:var(--lead)}
+.opts label{display:flex;gap:6px;align-items:center}
+.examples{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.meter{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line)}
+.meter div{background:var(--panel);padding:12px 14px;display:grid;gap:4px}
+.meter b{font-family:var(--mono);font-size:24px;font-weight:500;font-variant-numeric:tabular-nums;line-height:1.1}
+.meter .save b{color:var(--oxide)}
+.main{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:24px;align-items:start}
+.panel{border:1px solid var(--line);background:var(--panel)}
+.panel > .head{display:flex;justify-content:space-between;align-items:baseline;padding:10px 14px;border-bottom:1px solid var(--line)}
+.tree{padding:10px 8px 14px}
+.node{position:relative;margin-left:calc(var(--d) * 22px)}
+.node::before{content:"";position:absolute;left:-12px;top:0;bottom:0;border-left:1px solid var(--line);display:var(--rail)}
+.card{all:unset;box-sizing:border-box;display:grid;grid-template-columns:18px 1fr auto;gap:4px 10px;align-items:baseline;width:100%;padding:8px 10px;margin:4px 0;border:1px solid var(--line);background:var(--bg);cursor:pointer}
+.card:hover{border-color:var(--ink)}
+.card:focus-visible{outline:2px solid var(--ink)}
+.card.sel{border-color:var(--ink);box-shadow:inset 3px 0 0 var(--ink)}
+.glyph{font-family:var(--mono)}
+.running .glyph,.running .nid{color:var(--oxide)}
+.running .card{border-color:var(--oxide)}
+.done .ttl{color:var(--ink)} .pending .ttl{color:var(--lead)} .failed .ttl{text-decoration:line-through}
+.nid{font-family:var(--mono);font-size:12px;color:var(--lead);margin-right:6px}
+.ttl{font-weight:500}
+.meta{grid-column:2 / 4;display:flex;flex-wrap:wrap;gap:6px 10px;font-family:var(--mono);font-size:11px;color:var(--lead)}
+.chip{border:1px solid var(--line);padding:0 5px;border-radius:2px;white-space:nowrap}
+.chip.jev{background:var(--ink);color:var(--on-ink);border-color:var(--ink)}
+.cost{font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums;color:var(--lead)}
+.detail{padding:14px;display:grid;gap:14px}
+.detail dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:0}
+.detail dt{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--lead)}
+.detail dd{margin:0;font-family:var(--mono);font-size:13px}
+.box{white-space:pre-wrap;word-wrap:break-word;font-size:14px;border-left:2px solid var(--line);padding-left:10px;max-height:340px;overflow:auto}
+.answer{padding:18px 20px;max-width:78ch}
+.answer h1,.answer h2,.answer h3{font-size:17px;margin:18px 0 6px}
+.answer p{margin:0 0 10px}
+.answer ul,.answer ol{margin:0 0 10px;padding-left:22px}
+.answer code{font-family:var(--mono);font-size:13px;background:var(--soft);padding:0 3px}
+.answer pre{font-family:var(--mono);font-size:13px;background:var(--soft);padding:10px;overflow:auto}
+.log{max-height:260px;overflow:auto;font-family:var(--mono);font-size:12px;padding:8px 14px}
+.log div{display:grid;grid-template-columns:52px 70px 1fr;gap:8px;padding:2px 0;border-bottom:1px solid var(--soft)}
+.log .t{color:var(--lead)}
+.history{display:grid}
+.history .row{display:grid;grid-template-columns:1fr auto auto auto;gap:10px;align-items:center;padding:8px 14px;border-bottom:1px solid var(--soft);font-size:13px}
+.history .req{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.empty{padding:18px 14px;color:var(--lead)}
+.err{color:var(--oxide);font-family:var(--mono);font-size:13px;padding:0 14px 12px}
+footer{font-family:var(--mono);font-size:11px;color:var(--lead);border-top:1px solid var(--line);padding-top:10px}
+@media (max-width:860px){.main{grid-template-columns:1fr}}
+@media (max-width:520px){.meter{grid-template-columns:1fr 1fr}.meter .save{grid-column:span 2}}
+@media (prefers-reduced-motion:no-preference){.running .glyph{animation:blink 1s steps(2,end) infinite}@keyframes blink{50%{opacity:.35}}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="brand">SIAC</span>
+    <span class="tag" data-i18n="tagline"></span>
+    <span class="mode" id="mode"></span>
+    <label class="label" for="lang" data-i18n="language"></label>
+    <select id="lang"><option value="en">English</option><option value="ca">Català</option><option value="es">Español</option></select>
+  </header>
+
+  <section class="compose" aria-label="request">
+    <label class="label" for="req" data-i18n="request"></label>
+    <textarea id="req"></textarea>
+    <div class="examples"><span class="label" data-i18n="examples"></span></div>
+    <div class="opts">
+      <label><span data-i18n="profile"></span> <select id="profile"></select></label>
+      <label><span data-i18n="budget"></span> $ <input id="budget" type="number" min="0.01" step="0.05" value="0.50" style="width:80px"></label>
+      <label><input id="dry" type="checkbox"> <span data-i18n="dry"></span></label>
+      <label><input id="nosplit" type="checkbox"> <span data-i18n="nosplit"></span></label>
+      <button class="btn" id="run" data-i18n="run"></button>
+    </div>
+  </section>
+
+  <section class="meter" aria-live="polite">
+    <div><span class="label" data-i18n="spent"></span><b id="m-cost">$0.0000</b></div>
+    <div><span class="label" data-i18n="calls"></span><b id="m-calls">0</b></div>
+    <div><span class="label" data-i18n="time"></span><b id="m-time">0.0 s</b></div>
+    <div><span class="label" id="m-base-l" data-i18n="baseline"></span><b id="m-base">-</b></div>
+    <div class="save"><span class="label" id="m-save-l" data-i18n="saving"></span><b id="m-save">-</b></div>
+  </section>
+
+  <section class="main">
+    <div class="panel">
+      <div class="head"><span class="label" data-i18n="tree"></span><span class="cost" id="status"></span></div>
+      <div class="tree" id="tree"><p class="empty" data-i18n="treeEmpty"></p></div>
+      <div class="err" id="err" hidden></div>
+    </div>
+    <div class="panel">
+      <div class="head"><span class="label" data-i18n="detail"></span><span class="cost" id="det-id"></span></div>
+      <div class="detail" id="detail"><p class="empty" data-i18n="detailEmpty"></p></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="head"><span class="label" data-i18n="answer"></span><button class="ghost" id="copy" data-i18n="copy"></button></div>
+    <div class="answer" id="answer"><p class="empty" data-i18n="answerEmpty"></p></div>
+  </section>
+
+  <section class="panel">
+    <div class="head"><span class="label" data-i18n="log"></span></div>
+    <div class="log" id="log"></div>
+  </section>
+
+  <section class="panel">
+    <div class="head"><span class="label" data-i18n="history"></span>
+      <label class="cost"><span data-i18n="speed"></span> <select id="speed"><option value="1">1×</option><option value="4" selected>4×</option><option value="20">20×</option></select></label></div>
+    <div class="history" id="history"></div>
+  </section>
+
+  <footer data-i18n="footer"></footer>
+</div>
+
+<script>
+(function(){
+"use strict";
+const I18N = {
+  en: {tagline:"Splits a big request into small tasks and sends each one to the cheapest model that can do it well. Decisions by Jev.",
+    language:"Language", request:"Your request", rootTitle:"Your request", examples:"Try", profile:"Providers", budget:"Budget", dry:"Dry run (no key, no cost)",
+    nosplit:"Do not split", run:"Run", running:"Running…", spent:"Spent", calls:"Calls", time:"Time", baseline:"One strong model", saving:"Saving",
+    costlier:"Extra cost", tree:"Task tree", detail:"Selected task", answer:"Final answer", copy:"Copy", copied:"Copied", log:"Every step",
+    history:"Saved runs", speed:"Replay speed", replay:"Replay", open:"Open", treeEmpty:"Run a request to see how SIAC splits it and who does each part.",
+    detailEmpty:"Click a task in the tree to see its prompt, the decisions about it and its result.", answerEmpty:"The answer appears here when the run ends.",
+    noRuns:"No saved runs yet.", live:"LIVE", dryMode:"DRY RUN", prompt:"Prompt", result:"Result", notes:"Hand-off notes", problem:"Problem reported",
+    gate:"Jev decided", split:"split", tier:"tier", conf:"confidence", raised:"raised one tier (Jev unsure)", type:"task type", answerType:"answer",
+    model:"model", attempts:"attempts", cost:"cost", status:"status", waiting:"waiting", jev:"JEV", done:"done", failed:"failed", partial:"stopped early",
+    footer:"SIAC · open source (MIT) · by Cinto Casals, SerIA Nativa. Decisions by Jev (TypeSafe AI) through Vercel AI Gateway. Keys stay on your computer.",
+    ex1:"Launch plan", ex2:"Classify comments", ex3:"Short email",
+    ex1t:"Prepare the launch of our new online course on AI for small businesses: 1) define three buyer personas, 2) write the landing page copy for the main persona, 3) write a 3-email welcome sequence, 4) list 10 LinkedIn post ideas, and 5) for each post idea, decide whether it is educational, promotional or social proof.",
+    ex2t:"Here are five customer comments. For each one, say whether it is a bug report, a feature request or praise, and then write a one-paragraph summary for the product team. 1) \"Export to PDF crashes on Safari.\" 2) \"Would love a dark mode!\" 3) \"Best invoicing tool we have used.\" 4) \"The totals are wrong when I add a discount.\" 5) \"Please add Catalan to the languages.\"",
+    ex3t:"Write a short, friendly email to a client to move tomorrow's 10:00 meeting to Thursday at the same time.",
+    ev:{run_started:"started", gate:"gate", plan:"plan", route:"route", llm_call:"call", verify:"check", repair:"repair", jev_solve:"Jev solved", fallback:"fallback",
+        model_fallback:"model refused", aggregate:"assemble", final_check:"final check", node_done:"done", node_failed:"failed", budget_exceeded:"budget", error:"error", run_done:"finished"}},
+  ca: {tagline:"Parteix una petició gran en tasques petites i envia cadascuna al model més barat que la pot fer bé. Decideix Jev.",
+    language:"Idioma", request:"La teva petició", rootTitle:"La teva petició", examples:"Prova", profile:"Proveïdors", budget:"Pressupost", dry:"Simulació (sense clau ni cost)",
+    nosplit:"No dividir", run:"Executa", running:"Treballant…", spent:"Gastat", calls:"Crides", time:"Temps", baseline:"Un sol model potent", saving:"Estalvi",
+    costlier:"Cost de més", tree:"Arbre de tasques", detail:"Tasca seleccionada", answer:"Resposta final", copy:"Copia", copied:"Copiat", log:"Tots els passos",
+    history:"Execucions desades", speed:"Velocitat de repetició", replay:"Repeteix", open:"Obre", treeEmpty:"Executa una petició per veure com SIAC la divideix i qui fa cada part.",
+    detailEmpty:"Clica una tasca de l'arbre per veure'n el prompt, què se n'ha decidit i el resultat.", answerEmpty:"La resposta surt aquí quan acaba l'execució.",
+    noRuns:"Encara no hi ha cap execució desada.", live:"EN VIU", dryMode:"SIMULACIÓ", prompt:"Prompt", result:"Resultat", notes:"Notes de traspàs", problem:"Problema detectat",
+    gate:"Jev ha decidit", split:"dividir", tier:"nivell", conf:"confiança", raised:"un nivell amunt (Jev dubtava)", type:"tipus de tasca", answerType:"resposta",
+    model:"model", attempts:"intents", cost:"cost", status:"estat", waiting:"en espera", jev:"JEV", done:"fet", failed:"fallat", partial:"aturat abans",
+    footer:"SIAC · codi obert (MIT) · de Cinto Casals, SerIA Nativa. Decideix Jev (TypeSafe AI) per Vercel AI Gateway. Les claus no surten del teu ordinador.",
+    ex1:"Pla de llançament", ex2:"Classificar comentaris", ex3:"Correu curt",
+    ex1t:"Prepara el llançament del nostre nou curs en línia d'IA per a petites empreses: 1) defineix tres perfils de client, 2) escriu el text de la pàgina de venda per al perfil principal, 3) escriu una seqüència de benvinguda de tres correus, 4) proposa 10 idees de posts per a LinkedIn, i 5) per a cada idea, decideix si és educativa, promocional o de prova social.",
+    ex2t:"Tinc aquests cinc comentaris de clients. Per a cadascun, digues si és un error, una petició de funcionalitat o un elogi, i després escriu un paràgraf de resum per a l'equip de producte. 1) «L'exportació a PDF es penja a Safari.» 2) «M'encantaria un mode fosc!» 3) «La millor eina de facturació que hem fet servir.» 4) «Els totals surten malament quan hi poso un descompte.» 5) «Afegiu el català als idiomes, si us plau.»",
+    ex3t:"Escriu un correu curt i amable a un client per passar la reunió de demà a les 10 a dijous a la mateixa hora.",
+    ev:{run_started:"inici", gate:"porta", plan:"pla", route:"encamina", llm_call:"crida", verify:"comprova", repair:"repara", jev_solve:"Jev resol", fallback:"alternativa",
+        model_fallback:"model refusat", aggregate:"uneix", final_check:"comprovació final", node_done:"fet", node_failed:"fallat", budget_exceeded:"pressupost", error:"error", run_done:"acabat"}},
+  es: {tagline:"Divide una petición grande en tareas pequeñas y envía cada una al modelo más barato que la hace bien. Decide Jev.",
+    language:"Idioma", request:"Tu petición", rootTitle:"Tu petición", examples:"Prueba", profile:"Proveedores", budget:"Presupuesto", dry:"Simulación (sin clave ni coste)",
+    nosplit:"No dividir", run:"Ejecutar", running:"Trabajando…", spent:"Gastado", calls:"Llamadas", time:"Tiempo", baseline:"Un solo modelo potente", saving:"Ahorro",
+    costlier:"Coste de más", tree:"Árbol de tareas", detail:"Tarea seleccionada", answer:"Respuesta final", copy:"Copiar", copied:"Copiado", log:"Todos los pasos",
+    history:"Ejecuciones guardadas", speed:"Velocidad de repetición", replay:"Repetir", open:"Abrir", treeEmpty:"Ejecuta una petición para ver cómo SIAC la divide y quién hace cada parte.",
+    detailEmpty:"Haz clic en una tarea del árbol para ver su prompt, lo que se ha decidido y el resultado.", answerEmpty:"La respuesta aparece aquí cuando termina la ejecución.",
+    noRuns:"Todavía no hay ejecuciones guardadas.", live:"EN VIVO", dryMode:"SIMULACIÓN", prompt:"Prompt", result:"Resultado", notes:"Notas de traspaso", problem:"Problema detectado",
+    gate:"Jev ha decidido", split:"dividir", tier:"nivel", conf:"confianza", raised:"un nivel más (Jev dudaba)", type:"tipo de tarea", answerType:"respuesta",
+    model:"modelo", attempts:"intentos", cost:"coste", status:"estado", waiting:"en espera", jev:"JEV", done:"hecho", failed:"fallado", partial:"parado antes",
+    footer:"SIAC · código abierto (MIT) · de Cinto Casals, SerIA Nativa. Decide Jev (TypeSafe AI) vía Vercel AI Gateway. Las claves no salen de tu ordenador.",
+    ex1:"Plan de lanzamiento", ex2:"Clasificar comentarios", ex3:"Correo corto",
+    ex1t:"Prepara el lanzamiento de nuestro nuevo curso online de IA para pequeñas empresas: 1) define tres perfiles de cliente, 2) escribe el texto de la página de venta para el perfil principal, 3) escribe una secuencia de bienvenida de tres correos, 4) propone 10 ideas de posts para LinkedIn, y 5) para cada idea, decide si es educativa, promocional o de prueba social.",
+    ex2t:"Tengo estos cinco comentarios de clientes. Para cada uno, di si es un error, una petición de funcionalidad o un elogio, y después escribe un párrafo de resumen para el equipo de producto. 1) «La exportación a PDF se cuelga en Safari.» 2) «¡Me encantaría un modo oscuro!» 3) «La mejor herramienta de facturación que hemos usado.» 4) «Los totales salen mal cuando pongo un descuento.» 5) «Añadid el catalán a los idiomas, por favor.»",
+    ex3t:"Escribe un correo corto y amable a un cliente para pasar la reunión de mañana a las 10 al jueves a la misma hora.",
+    ev:{run_started:"inicio", gate:"puerta", plan:"plan", route:"enruta", llm_call:"llamada", verify:"comprueba", repair:"repara", jev_solve:"Jev resuelve", fallback:"alternativa",
+        model_fallback:"modelo rechazado", aggregate:"une", final_check:"comprobación final", node_done:"hecho", node_failed:"fallado", budget_exceeded:"presupuesto", error:"error", run_done:"terminado"}}
+};
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const money = v => "$" + (v || 0).toFixed((v || 0) < 0.01 ? 5 : 4);
+const short = m => (m || "").split("/").pop();
+let lang = "en", L = I18N.en, info = {}, S = null, selected = null, replayTimer = null, es = null;
+
+function pickLang(){
+  let saved = null; try { saved = localStorage.getItem("siac.lang"); } catch(e) {}
+  const nav = (navigator.language || "en").slice(0,2);
+  return I18N[saved] ? saved : (I18N[nav] ? nav : "en");
+}
+function applyLang(){
+  L = I18N[lang]; document.documentElement.lang = lang; $("lang").value = lang;
+  document.querySelectorAll("[data-i18n]").forEach(n => { const k = n.getAttribute("data-i18n"); if (L[k]) n.textContent = L[k]; });
+  const ex = document.querySelector(".examples"); ex.querySelectorAll("button").forEach(b => b.remove());
+  ["ex1","ex2","ex3"].forEach(k => { const b = document.createElement("button"); b.className = "ghost"; b.textContent = L[k];
+    b.addEventListener("click", () => { $("req").value = L[k + "t"]; $("req").focus(); }); ex.append(b); });
+  $("mode").textContent = ($("dry").checked || !info.has_key) ? L.dryMode : L.live;
+  if (S) renderAll();
+  loadHistory();
+}
+
+function fresh(){ return {nodes:{}, order:[], cost:0, calls:0, t:0, receipt:null, answer:"", status:"", log:[], error:""}; }
+
+function node(id){ if (!S.nodes[id]) { S.nodes[id] = {id, title:id, status:"pending", children:[], depth:0}; S.order.push(id); } return S.nodes[id]; }
+
+function apply(ev){
+  S.t = Math.max(S.t, ev.t || 0);
+  const n = ev.node ? node(ev.node) : null;
+  switch (ev.type) {
+    case "run_started": n.title = "Request"; n.prompt = ev.request; n.status = "running"; break;
+    case "node_started": Object.assign(n, {title: ev.title, depth: ev.depth, parent: ev.parent, prompt: ev.prompt, criteria: ev.criteria, jev: ev.jev, status: "running"});
+      if (ev.parent) { const p = node(ev.parent); if (!p.children.includes(n.id)) p.children.push(n.id); } break;
+    case "gate": n.gate = ev; n.tier = ev.tier; break;
+    case "plan": n.kind = "split"; n.planModel = ev.model; ev.subtasks.forEach(s => { const c = node(s.id); c.title = s.title; c.parent = n.id; c.depth = (n.depth || 0) + 1; c.jev = s.jev;
+      if (!n.children.includes(s.id)) n.children.push(s.id); }); break;
+    case "route": n.model = ev.model; n.tier = ev.tier; n.kind = "llm"; break;
+    case "llm_call": S.cost += ev.cost || 0; S.calls++; break;
+    case "jev_solve": n.kind = "jev"; n.model = info.decider || "typesafe-ai/jev"; break;
+    case "aggregate": n.model = ev.model; break;
+    case "model_fallback": n.model = ev.next; break;
+    case "node_done": Object.assign(n, {status: ev.status, model: ev.model || n.model, tier: ev.tier, cost: ev.cost, kind: ev.kind || n.kind,
+      result: ev.result, notes: ev.notes, problem: ev.problem, attempts: ev.attempts}); break;
+    case "run_done": S.receipt = ev.receipt; S.answer = ev.answer || S.answer; S.status = ev.status; S.cost = ev.receipt ? ev.receipt.total_cost : S.cost;
+      if (ev.error) S.error = ev.error; break;
+    case "error": case "budget_exceeded": case "node_failed": S.error = ev.message; break;
+  }
+  if (["gate","verify","jev_solve","final_check","plan"].includes(ev.type)) { S.cost += ev.cost || 0; S.calls++; }
+  S.log.push(ev);
+}
+
+function glyph(st){ return {done:"■", running:"▶", failed:"⊠", pending:"□"}[st] || "□"; }
+
+function renderTree(){
+  const box = $("tree"); box.replaceChildren();
+  if (!S.nodes.root) { box.innerHTML = '<p class="empty">' + esc(L.treeEmpty) + "</p>"; return; }
+  const walk = (id, d) => {
+    const n = S.nodes[id]; if (!n) return;
+    const wrap = document.createElement("div"); wrap.className = "node " + n.status; wrap.style.setProperty("--d", d); wrap.style.setProperty("--rail", d ? "block" : "none");
+    const b = document.createElement("button"); b.className = "card" + (selected === id ? " sel" : ""); b.type = "button";
+    const who = n.kind === "jev" || n.jev ? '<span class="chip jev">' + L.jev + "</span>" : (n.model ? '<span class="chip">' + esc(short(n.model)) + "</span>" : "");
+    const tier = n.tier ? '<span class="chip">T' + n.tier + "</span>" : "";
+    const split = n.kind === "split" ? '<span class="chip">' + esc(L.split) + " → " + n.children.length + "</span>" : "";
+    const title = id === "root" ? L.rootTitle : n.title;
+    b.innerHTML = '<span class="glyph">' + glyph(n.status) + '</span><span><span class="nid">' + esc(id) + '</span><span class="ttl">' + esc(title) + '</span></span>' +
+      '<span class="cost">' + (n.cost ? money(n.cost) : "") + '</span><span class="meta">' + tier + who + split + (n.status === "pending" ? '<span>' + esc(L.waiting) + "</span>" : "") + "</span>";
+    b.addEventListener("click", () => { selected = id; renderTree(); renderDetail(); });
+    wrap.append(b); box.append(wrap);
+    n.children.forEach(c => walk(c, d + 1));
+  };
+  walk("root", 0);
+}
+
+function renderDetail(){
+  const box = $("detail"); const n = selected && S && S.nodes[selected];
+  $("det-id").textContent = n ? n.id : "";
+  if (!n) { box.innerHTML = '<p class="empty">' + esc(L.detailEmpty) + "</p>"; return; }
+  const g = n.gate;
+  let h = "<dl>";
+  h += "<dt>" + esc(L.status) + "</dt><dd>" + esc(L[n.status] || n.status) + "</dd>";
+  if (n.model) h += "<dt>" + esc(L.model) + "</dt><dd>" + esc(n.model) + (n.tier ? " · T" + n.tier : "") + "</dd>";
+  if (n.cost) h += "<dt>" + esc(L.cost) + "</dt><dd>" + money(n.cost) + "</dd>";
+  if (g) h += "<dt>" + esc(L.gate) + "</dt><dd>" + esc(L.split) + " " + (g.split * 100).toFixed(0) + "% · " + esc(L.tier) + " " + g.tier_raw + (g.tier_confidence != null ? " (" + esc(L.conf) + " " + g.tier_confidence.toFixed(2) + ")" : "") +
+    (g.raised ? " · " + esc(L.raised) : "") + " · " + esc(L.type) + " " + esc(g.task_type) + " · " + esc(L.answerType) + " " + esc(g.answer_type) + "</dd>";
+  if (n.attempts && n.attempts.length) h += "<dt>" + esc(L.attempts) + "</dt><dd>" + n.attempts.map(a => esc(short(a.model)) + " T" + a.tier + " → " + a.ok_probability).join(" · ") + "</dd>";
+  h += "</dl>";
+  if (n.prompt) h += '<div><div class="label">' + esc(L.prompt) + '</div><div class="box">' + esc(n.prompt) + "</div></div>";
+  if (n.result) h += '<div><div class="label">' + esc(L.result) + '</div><div class="box">' + esc(n.result) + "</div></div>";
+  if (n.notes) h += '<div><div class="label">' + esc(L.notes) + '</div><div class="box">' + esc(n.notes) + "</div></div>";
+  if (n.problem) h += '<div><div class="label">' + esc(L.problem) + '</div><div class="box">' + esc(n.problem) + "</div></div>";
+  box.innerHTML = h;
+}
+
+function md(text){
+  const lines = esc(text).split("\n"); let out = "", list = null, code = false;
+  const inline = s => s.replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  const close = () => { if (list) { out += "</" + list + ">"; list = null; } };
+  for (const ln of lines) {
+    if (ln.trim().startsWith("```")) { close(); out += code ? "</pre>" : "<pre>"; code = !code; continue; }
+    if (code) { out += ln + "\n"; continue; }
+    let m;
+    if ((m = ln.match(/^(#{1,3})\s+(.*)/))) { close(); out += "<h" + m[1].length + ">" + inline(m[2]) + "</h" + m[1].length + ">"; }
+    else if ((m = ln.match(/^\s*[-*]\s+(.*)/))) { if (list !== "ul") { close(); out += "<ul>"; list = "ul"; } out += "<li>" + inline(m[1]) + "</li>"; }
+    else if ((m = ln.match(/^\s*\d+[.)]\s+(.*)/))) { if (list !== "ol") { close(); out += "<ol>"; list = "ol"; } out += "<li>" + inline(m[1]) + "</li>"; }
+    else if (!ln.trim()) { close(); }
+    else { close(); out += "<p>" + inline(ln) + "</p>"; }
+  }
+  close(); if (code) out += "</pre>";
+  return out;
+}
+
+function renderMeter(){
+  $("m-cost").textContent = money(S.cost); $("m-calls").textContent = S.calls; $("m-time").textContent = S.t.toFixed(1) + " s";
+  const r = S.receipt;
+  if (r) {
+    $("m-base").textContent = money(r.baseline.estimated_cost); $("m-base-l").textContent = L.baseline + " · " + short(r.baseline.model);
+    if (r.saving_pct != null && r.saving_pct >= 0) { $("m-save-l").textContent = L.saving; $("m-save").textContent = r.saving_pct.toFixed(0) + "%"; }
+    else if (r.saving_pct != null) { $("m-save-l").textContent = L.costlier; $("m-save").textContent = "+" + (-r.saving_pct).toFixed(0) + "%"; }
+  } else { $("m-base").textContent = "-"; $("m-save").textContent = "-"; $("m-base-l").textContent = L.baseline; $("m-save-l").textContent = L.saving; }
+  $("status").textContent = S.status ? (L[S.status] || S.status) : (S.nodes.root ? L.running : "");
+}
+
+function renderLog(){
+  const box = $("log"); box.replaceChildren();
+  S.log.slice(-400).forEach(ev => {
+    if (ev.type === "node_started" || ev.type === "llm_call") return;
+    const d = document.createElement("div");
+    let what = "";
+    if (ev.type === "gate") what = L.tier + " " + ev.tier + " · " + ev.task_type + " · " + L.split + " " + (ev.split * 100).toFixed(0) + "%";
+    else if (ev.type === "plan") what = ev.subtasks.length + " · " + short(ev.model);
+    else if (ev.type === "route" || ev.type === "aggregate") what = short(ev.model) + (ev.tier ? " T" + ev.tier : "");
+    else if (ev.type === "verify" || ev.type === "final_check") what = (ev.ok ? "ok" : "✗") + " " + ev.probability;
+    else if (ev.type === "jev_solve") what = ev.items + (ev.unsure && ev.unsure.length ? " (" + ev.unsure.length + "?)" : "");
+    else if (ev.type === "node_done") what = (ev.status !== "done" ? (L[ev.status] || ev.status) + " · " : "") + (ev.model ? short(ev.model) : "") + (ev.cost ? " · " + money(ev.cost) : "");
+    else if (ev.type === "model_fallback") what = short(ev.model) + " → " + short(ev.next);
+    else if (ev.message) what = ev.message;
+    else if (ev.type === "run_done") what = (L[ev.status] || ev.status) + " · " + money(ev.cost);
+    d.innerHTML = '<span class="t">' + (ev.t || 0).toFixed(1) + 's</span><span>' + esc(ev.node || "") + "</span><span>" + esc((L.ev[ev.type] || ev.type) + (what ? " · " + what : "")) + "</span>";
+    box.append(d);
+  });
+  box.scrollTop = box.scrollHeight;
+}
+
+function renderAll(){
+  renderTree(); renderDetail(); renderMeter(); renderLog();
+  $("answer").innerHTML = S.answer ? md(S.answer) : '<p class="empty">' + esc(L.answerEmpty) + "</p>";
+  const e = $("err"); e.hidden = !S.error; e.textContent = S.error || "";
+}
+
+let raf = 0;
+function schedule(){ if (!raf) raf = requestAnimationFrame(() => { raf = 0; renderAll(); }); }
+
+function stopAll(){ if (es) { es.close(); es = null; } if (replayTimer) { clearTimeout(replayTimer); replayTimer = null; } }
+
+async function run(){
+  const request = $("req").value.trim(); if (!request) { $("req").focus(); return; }
+  stopAll(); S = fresh(); selected = "root"; renderAll();
+  $("run").disabled = true; $("run").textContent = L.running;
+  try {
+    const r = await fetch("/api/run", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({request, dry_run: $("dry").checked, profile: $("profile").value, max_cost: parseFloat($("budget").value) || 0.5, no_split: $("nosplit").checked})});
+    const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status);
+    es = new EventSource("/api/events/" + encodeURIComponent(j.id));
+    es.onmessage = m => { apply(JSON.parse(m.data)); schedule(); };
+    es.addEventListener("result", () => { stopAll(); done(); });
+    es.onerror = () => { if (S.status) { stopAll(); done(); } };
+  } catch (e) { S.error = String(e.message || e); renderAll(); done(); }
+}
+function done(){ $("run").disabled = false; $("run").textContent = L.run; renderAll(); loadHistory(); }
+
+async function loadHistory(){
+  const box = $("history");
+  let runs = [];
+  try { runs = await (await fetch("/api/runs")).json(); } catch (e) {}
+  box.replaceChildren();
+  if (!runs.length) { box.innerHTML = '<p class="empty">' + esc(L.noRuns) + "</p>"; return; }
+  runs.forEach(r => {
+    const row = document.createElement("div"); row.className = "row";
+    row.innerHTML = '<span class="req" title="' + esc(r.request) + '">' + esc(r.request) + '</span><span class="cost">' + money(r.cost) +
+      (r.saving_pct != null ? " · " + (r.saving_pct >= 0 ? L.saving + " " + r.saving_pct.toFixed(0) + "%" : L.costlier + " " + (-r.saving_pct).toFixed(0) + "%") : "") + "</span>";
+    const rep = document.createElement("button"); rep.className = "ghost"; rep.textContent = L.replay; rep.addEventListener("click", () => replay(r.id, false));
+    const op = document.createElement("button"); op.className = "ghost"; op.textContent = L.open; op.addEventListener("click", () => replay(r.id, true));
+    row.append(rep, op); box.append(row);
+  });
+}
+
+async function replay(id, instant){
+  stopAll();
+  const run = await (await fetch("/api/runs/" + encodeURIComponent(id))).json();
+  if (!run || !run.events) return;
+  S = fresh(); selected = "root"; $("req").value = run.request;
+  const evs = run.events, speed = parseFloat($("speed").value) || 4;
+  if (instant) { evs.forEach(apply); if (!S.answer) S.answer = run.answer; renderAll(); return; }
+  let i = 0;
+  const step = () => {
+    if (i >= evs.length) { if (!S.answer) S.answer = run.answer; renderAll(); return; }
+    const ev = evs[i++]; apply(ev); schedule();
+    const next = evs[i]; const wait = next ? Math.max(0, (next.t - ev.t) * 1000 / speed) : 0;
+    replayTimer = setTimeout(step, Math.min(wait, 2500));
+  };
+  step();
+}
+
+async function init(){
+  try { info = await (await fetch("/api/info")).json(); } catch (e) { info = {}; }
+  (info.profiles || ["all"]).forEach(p => { const o = document.createElement("option"); o.value = o.textContent = p; $("profile").append(o); });
+  $("dry").checked = !!info.dry_run_default; $("dry").disabled = !info.has_key;
+  lang = pickLang(); applyLang();
+  $("lang").addEventListener("change", e => { lang = e.target.value; try { localStorage.setItem("siac.lang", lang); } catch(x) {} applyLang(); });
+  $("dry").addEventListener("change", () => { $("mode").textContent = $("dry").checked || !info.has_key ? L.dryMode : L.live; });
+  $("run").addEventListener("click", run);
+  $("req").addEventListener("keydown", e => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") run(); });
+  $("copy").addEventListener("click", async () => { if (!S || !S.answer) return; try { await navigator.clipboard.writeText(S.answer); $("copy").textContent = L.copied; setTimeout(() => $("copy").textContent = L.copy, 1500); } catch (e) {} });
+}
+init();
+})();
+</script>
+</body>
+</html>
