@@ -82,6 +82,16 @@ print(reply.model_extra["siac"])   # run id, cost in USD, baseline estimate, sav
 - The server listens only on your machine. If you open it to others, set `--api-key` (or `SIAC_API_KEY`):
   every request spends your credit.
 
+### With Docker
+
+```bash
+docker compose up                                  # page and API on http://127.0.0.1:8765
+# or: docker build -t siac . && docker run -p 127.0.0.1:8765:8765 -e AI_GATEWAY_API_KEY siac
+```
+
+Keys come from your environment and are never written into the image. Runs are kept in the `siac-runs`
+volume. The compose file publishes the port on your machine only; if you open it wider, set `SIAC_API_KEY`.
+
 ## How it works
 
 ```
@@ -140,7 +150,7 @@ request
 | v0.1 | Core loop from the terminal: gate, planner, router, executor, verifier, aggregator, cost receipt (done) |
 | v0.2 | Live task tree in the browser, run replay, export, English, Catalan and Spanish UI (done) |
 | v0.3 | Public benchmark: SIAC against a single strong model |
-| v0.4 | OpenAI-compatible endpoint, direct provider keys, local models with Ollama (done), Docker |
+| v0.4 | OpenAI-compatible endpoint, direct provider keys, local models with Ollama, Docker (done); continuous integration |
 | v1.0 | Public release |
 
 ## Models
