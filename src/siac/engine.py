@@ -53,7 +53,7 @@ class Limits:
     worker_max_tokens: int = 6000
     subtask_max_tokens: int = 4000
     # Hidden reasoning is billed as output. Cheap tiers do not need it; strong tiers get a little.
-    reasoning: dict = field(default_factory=lambda: {1: "off", 2: "off", 3: "low", 4: "medium"})
+    reasoning: dict = field(default_factory=lambda: {1: "off", 2: "off", 3: "low", 4: "low"})
 
 
 @dataclass
@@ -200,7 +200,7 @@ class Engine:
         models = [model] if isinstance(model, str) else list(model)
         last: GatewayError | None = None
         for i, m in enumerate(models):
-            est = self._check_budget(m, estimate_tokens(system + user), max_tokens // 2)
+            est = self._check_budget(m, estimate_tokens(system + user), int(max_tokens * 0.75))
             try:
                 async with self._sem:
                     r = await self.gw.chat(m, [{"role": "system", "content": system},
@@ -394,6 +394,8 @@ class Engine:
             node.model, node.tier = model, tier
             self._emit("route", node, model=model, tier=tier, attempt=attempt + 1)
             max_out = self.limits.worker_max_tokens if node.id == "root" else self.limits.subtask_max_tokens
+            if tier >= 4:  # strong models think before they write: leave room for the answer
+                max_out = max(max_out, 8000)
             text = await self._chat(node, "work", chain, system, user + feedback, max_out,
                                     reasoning=self.limits.reasoning.get(tier))
             model = node.model

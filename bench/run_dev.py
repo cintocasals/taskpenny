@@ -95,9 +95,12 @@ async def main():
 
     async def guarded(c):
         async with sem:
-            if spent["usd"] + spent["reserved"] + args.max_cost > args.total_budget:
-                print(f"{c['id']}: skipped (total budget ${args.total_budget:.2f} reached)", flush=True)
-                return None
+            # wait while cases in flight may still spend; skip only when nothing is in flight and it does not fit
+            while spent["usd"] + spent["reserved"] + args.max_cost > args.total_budget:
+                if spent["reserved"] <= 0:
+                    print(f"{c['id']}: skipped (total budget ${args.total_budget:.2f} reached)", flush=True)
+                    return None
+                await asyncio.sleep(1)
             spent["reserved"] += args.max_cost
             try:
                 r = await one(c, catalog, gw, args)

@@ -2,11 +2,24 @@
 
 **Split a big prompt into small tasks and send each one to the cheapest model that can do it well.**
 
-> Status: work in progress. v0.1 (the core loop, from the terminal) is being built. Not ready for use yet.
+> Status: work in progress, private. The core loop (v0.1) and the live page (v0.2) work; they are being measured and tuned before the public benchmark (v0.3).
 
 Most prompts don't need your most expensive model for every part of the job. SIAC works like a good project lead: it decides whether a request is worth splitting, breaks it into small, well defined tasks, gives each task to the cheapest model that can handle it, checks every result before moving on, and puts everything together into one answer. You watch the whole process live, and at the end you get a receipt that compares what it cost with what it would have cost to send everything to the strongest model.
 
 The decisions (split or not, which tier of model, is this result good enough) are made by [Jev](https://typesafe.ai), TypeSafe AI's decision model, which costs about 3 cents per thousand decisions. When a task is simply a choice (pick an option, answer yes or no, give a score), Jev solves it directly: no language model needed.
+
+## Quickstart
+
+```bash
+pip install -e .              # from a clone of this repository (a PyPI package comes with v1.0)
+siac demo                     # watch SIAC work on a sample request: no key, no cost
+export AI_GATEWAY_API_KEY=... # one Vercel AI Gateway key: Jev plus Claude, GPT and Gemini models
+siac run "Write a short email to move tomorrow's meeting to Thursday"
+siac ui                       # the live task tree in your browser
+```
+
+Every run is saved in `runs/` as JSON. `siac export runs/<id>.json` turns one into a Markdown report,
+and `siac models --check` compares the catalog prices with the live Vercel catalog.
 
 ## How it works
 
@@ -40,12 +53,30 @@ request
 - **Visible.** Every step, model, decision confidence and cent is on screen.
 - **Verifiable.** A public, reproducible benchmark (coming in v0.3) compares SIAC with a single strong model on cost, quality and time.
 
+## Reading the live page
+
+- **What SIAC did**: how many Jev decisions, plans, model calls, Jev-solved tasks and checks the run needed.
+- **Task tree**: every task with its tier (1 basic to 4 critical), who did it (a model, or JEV) and what it cost.
+  Click a task to see its prompt, what Jev decided about it, each attempt and its result.
+- **Cost receipt**: planning, work, Jev decisions, checks and assembly add up to the total. The comparison is an
+  estimate of sending the same request once to the baseline model (Claude Opus 5.5) with an answer as long as SIAC's,
+  scaled by the hidden reasoning SIAC's own models used in that run.
+
+## What we have learned so far
+
+- Jev's gate has been accurate on our development prompts in English, Catalan and Spanish: when to split, what kind of
+  answer is expected, and a tier that is not too low.
+- Simple requests save the most: they go straight to a cheap model.
+- Splitting only pays when the parts can go to cheaper models than the whole would need. So SIAC splits only when Jev
+  is clearly sure, never rewrites the parts to assemble them, and never falls back to a more expensive model.
+- Public, reproducible numbers come with the v0.3 benchmark.
+
 ## Roadmap
 
 | Version | What |
 |---|---|
-| v0.1 | Core loop from the terminal: gate, planner, router, executor, verifier, aggregator, cost receipt |
-| v0.2 | Live task tree in the browser, run replay, English, Catalan and Spanish UI |
+| v0.1 | Core loop from the terminal: gate, planner, router, executor, verifier, aggregator, cost receipt (done, tuning) |
+| v0.2 | Live task tree in the browser, run replay, export, English, Catalan and Spanish UI (done, tuning) |
 | v0.3 | Public benchmark: SIAC against a single strong model |
 | v0.4 | OpenAI-compatible endpoint, direct provider keys, local models with Ollama, Docker |
 | v1.0 | Public release |
