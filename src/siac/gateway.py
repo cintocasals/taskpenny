@@ -15,6 +15,7 @@ from typing import Any, Protocol
 
 import httpx
 
+from . import __version__
 from .catalog import Catalog
 
 DEFAULT_BASE_URL = "https://ai-gateway.vercel.sh"
@@ -115,7 +116,7 @@ class Gateway:
         self.timeout, self.eval_timeout, self.retries = timeout, eval_timeout, retries
         self._client = client or httpx.AsyncClient(
             headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json",
-                     "User-Agent": "siac/0.1"},
+                     "User-Agent": f"siac/{__version__}"},
             timeout=timeout,
         )
 

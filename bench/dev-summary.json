@@ -1,0 +1,2493 @@
+[
+ {
+  "id": "ca01",
+  "lang": "ca",
+  "expect": {
+   "split": false,
+   "answer": "text",
+   "tier": 1,
+   "type": "writing"
+  },
+  "gate": {
+   "split": 0.03,
+   "tier": 1,
+   "tier_raw": 1,
+   "tier_confidence": 1.0,
+   "raised": false,
+   "task_type": "writing",
+   "answer_type": "text"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 1,
+  "tier_used": 1,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "openai/gpt-6-luna"
+  ],
+  "cost": 3.1e-05,
+  "baseline": 0.000376,
+  "saving_pct": 91.8,
+  "seconds": 2.1,
+  "answer_chars": 41,
+  "error": "",
+  "receipt": {
+   "total_cost": 3.1e-05,
+   "calls": 3,
+   "tokens_in": 1356,
+   "tokens_out": 53,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 3.1e-05
+   },
+   "by_model": {
+    "openai/gpt-6-luna": 3.1e-05,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.000376,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, no retries and no reasoning tokens (so the real cost would usually be higher)"
+   },
+   "saving_pct": 91.8
+  }
+ },
+ {
+  "id": "ca02",
+  "lang": "ca",
+  "expect": {
+   "split": false,
+   "answer": "choice",
+   "tier": 1,
+   "type": "analysis"
+  },
+  "gate": {
+   "split": 0.06,
+   "tier": 1,
+   "tier_raw": 1,
+   "tier_confidence": 0.99,
+   "raised": false,
+   "task_type": "analysis",
+   "answer_type": "choice"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 1,
+  "tier_used": 1,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "openai/gpt-6-luna"
+  ],
+  "cost": 0.000115,
+  "baseline": 0.000876,
+  "saving_pct": 86.9,
+  "seconds": 5.9,
+  "answer_chars": 118,
+  "error": "",
+  "receipt": {
+   "total_cost": 0.000115,
+   "calls": 5,
+   "tokens_in": 1990,
+   "tokens_out": 193,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 0.000115
+   },
+   "by_model": {
+    "openai/gpt-6-luna": 0.000115,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.000876,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, no retries and no reasoning tokens (so the real cost would usually be higher)"
+   },
+   "saving_pct": 86.9
+  }
+ },
+ {
+  "id": "ca03",
+  "lang": "ca",
+  "expect": {
+   "split": false,
+   "answer": "yesno",
+   "tier": 1,
+   "type": "analysis"
+  },
+  "gate": {
+   "split": 0.04,
+   "tier": 1,
+   "tier_raw": 1,
+   "tier_confidence": 1.0,
+   "raised": false,
+   "task_type": "analysis",
+   "answer_type": "yesno"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 1,
+  "tier_used": 1,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "openai/gpt-6-luna"
+  ],
+  "cost": 3.7e-05,
+  "baseline": 0.000636,
+  "saving_pct": 94.2,
+  "seconds": 2.7,
+  "answer_chars": 70,
+  "error": "",
+  "receipt": {
+   "total_cost": 3.7e-05,
+   "calls": 3,
+   "tokens_in": 1462,
+   "tokens_out": 58,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 3.7e-05
+   },
+   "by_model": {
+    "openai/gpt-6-luna": 3.7e-05,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.000636,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, no retries and no reasoning tokens (so the real cost would usually be higher)"
+   },
+   "saving_pct": 94.2
+  }
+ },
+ {
+  "id": "ca04",
+  "lang": "ca",
+  "expect": {
+   "split": false,
+   "answer": "text",
+   "tier": 1,
+   "type": "writing"
+  },
+  "gate": {
+   "split": 0.07,
+   "tier": 1,
+   "tier_raw": 1,
+   "tier_confidence": 1.0,
+   "raised": false,
+   "task_type": "writing",
+   "answer_type": "text"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 1,
+  "tier_used": 1,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "openai/gpt-6-luna"
+  ],
+  "cost": 8.6e-05,
+  "baseline": 0.000632,
+  "saving_pct": 86.4,
+  "seconds": 3.5,
+  "answer_chars": 75,
+  "error": "",
+  "receipt": {
+   "total_cost": 8.6e-05,
+   "calls": 3,
+   "tokens_in": 1459,
+   "tokens_out": 157,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 8.6e-05
+   },
+   "by_model": {
+    "openai/gpt-6-luna": 8.6e-05,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.000632,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, no retries and no reasoning tokens (so the real cost would usually be higher)"
+   },
+   "saving_pct": 86.4
+  }
+ },
+ {
+  "id": "ca05",
+  "lang": "ca",
+  "expect": {
+   "split": false,
+   "answer": "text",
+   "tier": 2,
+   "type": "writing"
+  },
+  "gate": {
+   "split": 0.05,
+   "tier": 2,
+   "tier_raw": 2,
+   "tier_confidence": 0.98,
+   "raised": false,
+   "task_type": "writing",
+   "answer_type": "text"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 2,
+  "tier_used": 2,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "deepseek/deepseek-v4.1-flash"
+  ],
+  "cost": 0.00122,
+  "baseline": 0.00238,
+  "saving_pct": 48.7,
+  "seconds": 8.0,
+  "answer_chars": 427,
+  "error": "",
+  "receipt": {
+   "total_cost": 0.00122,
+   "calls": 3,
+   "tokens_in": 1563,
+   "tokens_out": 996,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 0.00122
+   },
+   "by_model": {
+    "deepseek/deepseek-v4.1-flash": 0.00122,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.00238,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, no retries and no reasoning tokens (so the real cost would usually be higher)"
+   },
+   "saving_pct": 48.7
+  }
+ },
+ {
+  "id": "ca06",
+  "lang": "ca",
+  "expect": {
+   "split": false,
+   "answer": "text",
+   "tier": 2,
+   "type": "writing"
+  },
+  "gate": {
+   "split": 0.07,
+   "tier": 2,
+   "tier_raw": 2,
+   "tier_confidence": 1.0,
+   "raised": false,
+   "task_type": "writing",
+   "answer_type": "text"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 2,
+  "tier_used": 2,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "deepseek/deepseek-v4.1-flash"
+  ],
+  "cost": 0.00289,
+  "baseline": 0.007764,
+  "saving_pct": 62.8,
+  "seconds": 23.5,
+  "answer_chars": 1510,
+  "error": "",
+  "receipt": {
+   "total_cost": 0.00289,
+   "calls": 3,
+   "tokens_in": 1905,
+   "tokens_out": 2390,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 0.00289
+   },
+   "by_model": {
+    "deepseek/deepseek-v4.1-flash": 0.00289,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.007764,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, no retries and no reasoning tokens (so the real cost would usually be higher)"
+   },
+   "saving_pct": 62.8
+  }
+ },
+ {
+  "id": "ca07",
+  "lang": "ca",
+  "expect": {
+   "split": false,
+   "answer": "text",
+   "tier": 1,
+   "type": "math"
+  },
+  "gate": {
+   "split": 0.05,
+   "tier": 1,
+   "tier_raw": 1,
+   "tier_confidence": 1.0,
+   "raised": false,
+   "task_type": "code",
+   "answer_type": "text"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 1,
+  "tier_used": 1,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "openai/gpt-6-luna"
+  ],
+  "cost": 4.9e-05,
+  "baseline": 0.000412,
+  "saving_pct": 88.2,
+  "seconds": 2.8,
+  "answer_chars": 32,
+  "error": "",
+  "receipt": {
+   "total_cost": 4.9e-05,
+   "calls": 3,
+   "tokens_in": 1410,
+   "tokens_out": 85,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 4.9e-05
+   },
+   "by_model": {
+    "openai/gpt-6-luna": 4.9e-05,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.000412,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, no retries and no reasoning tokens (so the real cost would usually be higher)"
+   },
+   "saving_pct": 88.2
+  }
+ },
+ {
+  "id": "ca08",
+  "lang": "ca",
+  "expect": {
+   "split": false,
+   "answer": "text",
+   "tier": 2,
+   "type": "writing"
+  },
+  "gate": {
+   "split": 0.04,
+   "tier": 2,
+   "tier_raw": 2,
+   "tier_confidence": 0.98,
+   "raised": false,
+   "task_type": "writing",
+   "answer_type": "text"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 2,
+  "tier_used": 2,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "deepseek/deepseek-v4.1-flash"
+  ],
+  "cost": 0.001257,
+  "baseline": 0.001732,
+  "saving_pct": 27.4,
+  "seconds": 9.7,
+  "answer_chars": 307,
+  "error": "",
+  "receipt": {
+   "total_cost": 0.001257,
+   "calls": 3,
+   "tokens_in": 1502,
+   "tokens_out": 1028,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 0.001257
+   },
+   "by_model": {
+    "deepseek/deepseek-v4.1-flash": 0.001257,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.001732,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, no retries and no reasoning tokens (so the real cost would usually be higher)"
+   },
+   "saving_pct": 27.4
+  }
+ },
+ {
+  "id": "ca09",
+  "lang": "ca",
+  "expect": {
+   "split": false,
+   "answer": "text",
+   "tier": 4,
+   "type": "analysis"
+  },
+  "gate": {
+   "split": 0.64,
+   "tier": 4,
+   "tier_raw": 4,
+   "tier_confidence": 0.81,
+   "raised": false,
+   "task_type": "analysis",
+   "answer_type": "text"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 4,
+  "tier_used": 4,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "anthropic/claude-sonnet-5"
+  ],
+  "cost": 0.022106,
+  "baseline": 0.025756,
+  "saving_pct": 14.2,
+  "seconds": 42.2,
+  "answer_chars": 5069,
+  "error": "",
+  "receipt": {
+   "total_cost": 0.022106,
+   "calls": 3,
+   "tokens_in": 3245,
+   "tokens_out": 2179,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 0.022106
+   },
+   "by_model": {
+    "anthropic/claude-sonnet-5": 0.022106,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.025756,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, no retries and no reasoning tokens (so the real cost would usually be higher)"
+   },
+   "saving_pct": 14.2
+  }
+ },
+ {
+  "id": "ca10",
+  "lang": "ca",
+  "expect": {
+   "split": true,
+   "answer": "text",
+   "tier": 3,
+   "type": "writing"
+  },
+  "gate": {
+   "split": 0.95,
+   "tier": 3,
+   "tier_raw": 3,
+   "tier_confidence": 0.94,
+   "raised": false,
+   "task_type": "writing",
+   "answer_type": "text"
+  },
+  "kind": "split",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 3,
+  "tier_used": 3,
+  "below": false,
+  "subtasks": 4,
+  "jev_solved": 0,
+  "models": [
+   "anthropic/claude-sonnet-5",
+   "deepseek/deepseek-v4.1-flash"
+  ],
+  "cost": 0.075059,
+  "baseline": 0.121924,
+  "saving_pct": 38.4,
+  "seconds": 43.3,
+  "answer_chars": 15166,
+  "error": "",
+  "receipt": {
+   "total_cost": 0.075059,
+   "calls": 22,
+   "tokens_in": 26556,
+   "tokens_out": 9041,
+   "by_role": {
+    "assembly": 0.001491,
+    "checks": 0.0,
+    "decisions": 0.0,
+    "planning": 0.007046,
+    "work": 0.066522
+   },
+   "by_model": {
+    "anthropic/claude-sonnet-5": 0.065552,
+    "google/gemini-3.8-flash": 0.007046,
+    "deepseek/deepseek-v4.1-flash": 0.00246,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.121924,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, scaled by the hidden reasoning SIAC's own models used in this run, with no retries",
+    "reasoning_factor": 1.6
+   },
+   "saving_pct": 38.4
+  }
+ },
+ {
+  "id": "ca11",
+  "lang": "ca",
+  "expect": {
+   "split": true,
+   "answer": "text",
+   "tier": 2,
+   "type": "writing"
+  },
+  "gate": {
+   "split": 0.86,
+   "tier": 2,
+   "tier_raw": 2,
+   "tier_confidence": 0.79,
+   "raised": false,
+   "task_type": "writing",
+   "answer_type": "text"
+  },
+  "kind": "split",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 2,
+  "tier_used": 2,
+  "below": false,
+  "subtasks": 2,
+  "jev_solved": 1,
+  "models": [
+   "deepseek/deepseek-v4.1-flash",
+   "typesafe-ai/jev"
+  ],
+  "cost": 0.006358,
+  "baseline": 0.01256,
+  "saving_pct": 49.4,
+  "seconds": 15.6,
+  "answer_chars": 1996,
+  "error": "",
+  "receipt": {
+   "total_cost": 0.006358,
+   "calls": 14,
+   "tokens_in": 11238,
+   "tokens_out": 1867,
+   "by_role": {
+    "assembly": 0.000743,
+    "checks": 0.0,
+    "decisions": 0.0,
+    "planning": 0.004759,
+    "work": 0.000856
+   },
+   "by_model": {
+    "google/gemini-3.8-flash": 0.004759,
+    "deepseek/deepseek-v4.1-flash": 0.001599,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.01256,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, scaled by the hidden reasoning SIAC's own models used in this run, with no retries",
+    "reasoning_factor": 1.21
+   },
+   "saving_pct": 49.4
+  }
+ },
+ {
+  "id": "ca12",
+  "lang": "ca",
+  "expect": {
+   "split": false,
+   "answer": "text",
+   "tier": 1,
+   "type": "translation"
+  },
+  "gate": {
+   "split": 0.03,
+   "tier": 1,
+   "tier_raw": 1,
+   "tier_confidence": 1.0,
+   "raised": false,
+   "task_type": "translation",
+   "answer_type": "text"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 1,
+  "tier_used": 1,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "openai/gpt-6-luna"
+  ],
+  "cost": 1.3e-05,
+  "baseline": 0.000488,
+  "saving_pct": 97.4,
+  "seconds": 1.9,
+  "answer_chars": 35,
+  "error": "",
+  "receipt": {
+   "total_cost": 1.3e-05,
+   "calls": 3,
+   "tokens_in": 1400,
+   "tokens_out": 13,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 1.3e-05
+   },
+   "by_model": {
+    "openai/gpt-6-luna": 1.3e-05,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.000488,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, scaled by the hidden reasoning SIAC's own models used in this run, with no retries",
+    "reasoning_factor": 1.62
+   },
+   "saving_pct": 97.4
+  }
+ },
+ {
+  "id": "ca13",
+  "lang": "ca",
+  "expect": {
+   "split": false,
+   "answer": "choice",
+   "tier": 1,
+   "type": "analysis"
+  },
+  "gate": {
+   "split": 0.05,
+   "tier": 2,
+   "tier_raw": 1,
+   "tier_confidence": 0.16,
+   "raised": true,
+   "task_type": "analysis",
+   "answer_type": "choice"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 1,
+  "tier_used": 2,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "deepseek/deepseek-v4.1-flash"
+  ],
+  "cost": 0.00012,
+  "baseline": 0.001888,
+  "saving_pct": 93.7,
+  "seconds": 4.5,
+  "answer_chars": 268,
+  "error": "",
+  "receipt": {
+   "total_cost": 0.00012,
+   "calls": 3,
+   "tokens_in": 1540,
+   "tokens_out": 79,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 0.00012
+   },
+   "by_model": {
+    "deepseek/deepseek-v4.1-flash": 0.00012,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.001888,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, scaled by the hidden reasoning SIAC's own models used in this run, with no retries",
+    "reasoning_factor": 1.18
+   },
+   "saving_pct": 93.7
+  }
+ },
+ {
+  "id": "ca14",
+  "lang": "ca",
+  "expect": {
+   "split": true,
+   "answer": "text",
+   "tier": 3,
+   "type": "writing"
+  },
+  "gate": {
+   "split": 0.93,
+   "tier": 3,
+   "tier_raw": 3,
+   "tier_confidence": 1.0,
+   "raised": false,
+   "task_type": "writing",
+   "answer_type": "text"
+  },
+  "kind": "split",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 3,
+  "tier_used": 3,
+  "below": false,
+  "subtasks": 4,
+  "jev_solved": 0,
+  "models": [
+   "anthropic/claude-sonnet-5",
+   "deepseek/deepseek-v4.1-flash"
+  ],
+  "cost": 0.064344,
+  "baseline": 0.111196,
+  "saving_pct": 42.1,
+  "seconds": 62.4,
+  "answer_chars": 14199,
+  "error": "",
+  "receipt": {
+   "total_cost": 0.064344,
+   "calls": 22,
+   "tokens_in": 27208,
+   "tokens_out": 8876,
+   "by_role": {
+    "assembly": 0.001577,
+    "checks": 0.0,
+    "decisions": 0.0,
+    "planning": 0.010051,
+    "work": 0.052716
+   },
+   "by_model": {
+    "anthropic/claude-sonnet-5": 0.050898,
+    "google/gemini-3.8-flash": 0.010051,
+    "deepseek/deepseek-v4.1-flash": 0.003395,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.111196,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, scaled by the hidden reasoning SIAC's own models used in this run, with no retries",
+    "reasoning_factor": 1.56
+   },
+   "saving_pct": 42.1
+  }
+ },
+ {
+  "id": "en01",
+  "lang": "en",
+  "expect": {
+   "split": false,
+   "answer": "text",
+   "tier": 1,
+   "type": "writing"
+  },
+  "gate": {
+   "split": 0.02,
+   "tier": 1,
+   "tier_raw": 1,
+   "tier_confidence": 1.0,
+   "raised": false,
+   "task_type": "writing",
+   "answer_type": "text"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 1,
+  "tier_used": 1,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "openai/gpt-6-luna"
+  ],
+  "cost": 3.7e-05,
+  "baseline": 0.00038,
+  "saving_pct": 90.3,
+  "seconds": 2.6,
+  "answer_chars": 42,
+  "error": "",
+  "receipt": {
+   "total_cost": 3.7e-05,
+   "calls": 3,
+   "tokens_in": 1350,
+   "tokens_out": 65,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 3.7e-05
+   },
+   "by_model": {
+    "openai/gpt-6-luna": 3.7e-05,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.00038,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, no retries and no reasoning tokens (so the real cost would usually be higher)"
+   },
+   "saving_pct": 90.3
+  }
+ },
+ {
+  "id": "en02",
+  "lang": "en",
+  "expect": {
+   "split": false,
+   "answer": "choice",
+   "tier": 1,
+   "type": "analysis"
+  },
+  "gate": {
+   "split": 0.05,
+   "tier": 1,
+   "tier_raw": 1,
+   "tier_confidence": 1.0,
+   "raised": false,
+   "task_type": "analysis",
+   "answer_type": "choice"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 1,
+  "tier_used": 1,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "openai/gpt-6-luna"
+  ],
+  "cost": 1.8e-05,
+  "baseline": 0.000324,
+  "saving_pct": 94.5,
+  "seconds": 2.3,
+  "answer_chars": 9,
+  "error": "",
+  "receipt": {
+   "total_cost": 1.8e-05,
+   "calls": 3,
+   "tokens_in": 1399,
+   "tokens_out": 23,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 1.8e-05
+   },
+   "by_model": {
+    "openai/gpt-6-luna": 1.8e-05,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.000324,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, no retries and no reasoning tokens (so the real cost would usually be higher)"
+   },
+   "saving_pct": 94.5
+  }
+ },
+ {
+  "id": "en03",
+  "lang": "en",
+  "expect": {
+   "split": false,
+   "answer": "yesno",
+   "tier": 1,
+   "type": "analysis"
+  },
+  "gate": {
+   "split": 0.04,
+   "tier": 1,
+   "tier_raw": 1,
+   "tier_confidence": 1.0,
+   "raised": false,
+   "task_type": "analysis",
+   "answer_type": "yesno"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 1,
+  "tier_used": 1,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "openai/gpt-6-luna"
+  ],
+  "cost": 3.3e-05,
+  "baseline": 0.000652,
+  "saving_pct": 95.0,
+  "seconds": 2.2,
+  "answer_chars": 75,
+  "error": "",
+  "receipt": {
+   "total_cost": 3.3e-05,
+   "calls": 3,
+   "tokens_in": 1436,
+   "tokens_out": 51,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 3.3e-05
+   },
+   "by_model": {
+    "openai/gpt-6-luna": 3.3e-05,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.000652,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, no retries and no reasoning tokens (so the real cost would usually be higher)"
+   },
+   "saving_pct": 95.0
+  }
+ },
+ {
+  "id": "en04",
+  "lang": "en",
+  "expect": {
+   "split": false,
+   "answer": "score",
+   "tier": 1,
+   "type": "analysis"
+  },
+  "gate": {
+   "split": 0.05,
+   "tier": 1,
+   "tier_raw": 1,
+   "tier_confidence": 0.97,
+   "raised": false,
+   "task_type": "analysis",
+   "answer_type": "score"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 1,
+  "tier_used": 1,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "openai/gpt-6-luna"
+  ],
+  "cost": 2.6e-05,
+  "baseline": 0.000708,
+  "saving_pct": 96.3,
+  "seconds": 2.2,
+  "answer_chars": 81,
+  "error": "",
+  "receipt": {
+   "total_cost": 2.6e-05,
+   "calls": 3,
+   "tokens_in": 1447,
+   "tokens_out": 38,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 2.6e-05
+   },
+   "by_model": {
+    "openai/gpt-6-luna": 2.6e-05,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.000708,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, no retries and no reasoning tokens (so the real cost would usually be higher)"
+   },
+   "saving_pct": 96.3
+  }
+ },
+ {
+  "id": "en05",
+  "lang": "en",
+  "expect": {
+   "split": false,
+   "answer": "text",
+   "tier": 2,
+   "type": "writing"
+  },
+  "gate": {
+   "split": 0.05,
+   "tier": 2,
+   "tier_raw": 2,
+   "tier_confidence": 0.95,
+   "raised": false,
+   "task_type": "writing",
+   "answer_type": "text"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 2,
+  "tier_used": 2,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "deepseek/deepseek-v4.1-flash"
+  ],
+  "cost": 0.000454,
+  "baseline": 0.001764,
+  "saving_pct": 74.2,
+  "seconds": 4.7,
+  "answer_chars": 303,
+  "error": "",
+  "receipt": {
+   "total_cost": 0.000454,
+   "calls": 3,
+   "tokens_in": 1506,
+   "tokens_out": 358,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 0.000454
+   },
+   "by_model": {
+    "deepseek/deepseek-v4.1-flash": 0.000454,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.001764,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, no retries and no reasoning tokens (so the real cost would usually be higher)"
+   },
+   "saving_pct": 74.2
+  }
+ },
+ {
+  "id": "en06",
+  "lang": "en",
+  "expect": {
+   "split": false,
+   "answer": "text",
+   "tier": 2,
+   "type": "writing"
+  },
+  "gate": {
+   "split": 0.05,
+   "tier": 2,
+   "tier_raw": 2,
+   "tier_confidence": 1.0,
+   "raised": false,
+   "task_type": "writing",
+   "answer_type": "text"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 2,
+  "tier_used": 2,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "deepseek/deepseek-v4.1-flash"
+  ],
+  "cost": 0.000791,
+  "baseline": 0.006536,
+  "saving_pct": 87.9,
+  "seconds": 4.9,
+  "answer_chars": 1262,
+  "error": "",
+  "receipt": {
+   "total_cost": 0.000791,
+   "calls": 3,
+   "tokens_in": 1629,
+   "tokens_out": 641,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 0.000791
+   },
+   "by_model": {
+    "deepseek/deepseek-v4.1-flash": 0.000791,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.006536,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, no retries and no reasoning tokens (so the real cost would usually be higher)"
+   },
+   "saving_pct": 87.9
+  }
+ },
+ {
+  "id": "en07",
+  "lang": "en",
+  "expect": {
+   "split": false,
+   "answer": "text",
+   "tier": 2,
+   "type": "code"
+  },
+  "gate": {
+   "split": 0.06,
+   "tier": 2,
+   "tier_raw": 2,
+   "tier_confidence": 0.96,
+   "raised": false,
+   "task_type": "code",
+   "answer_type": "text"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 2,
+  "tier_used": 2,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "deepseek/deepseek-v4.1-flash"
+  ],
+  "cost": 0.000627,
+  "baseline": 0.0028,
+  "saving_pct": 77.6,
+  "seconds": 6.3,
+  "answer_chars": 505,
+  "error": "",
+  "receipt": {
+   "total_cost": 0.000627,
+   "calls": 3,
+   "tokens_in": 1523,
+   "tokens_out": 502,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 0.000627
+   },
+   "by_model": {
+    "deepseek/deepseek-v4.1-flash": 0.000627,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.0028,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, no retries and no reasoning tokens (so the real cost would usually be higher)"
+   },
+   "saving_pct": 77.6
+  }
+ },
+ {
+  "id": "en08",
+  "lang": "en",
+  "expect": {
+   "split": false,
+   "answer": "text",
+   "tier": 2,
+   "type": "writing"
+  },
+  "gate": {
+   "split": 0.05,
+   "tier": 2,
+   "tier_raw": 2,
+   "tier_confidence": 0.99,
+   "raised": false,
+   "task_type": "writing",
+   "answer_type": "text"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 2,
+  "tier_used": 2,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "deepseek/deepseek-v4.1-flash"
+  ],
+  "cost": 0.002301,
+  "baseline": 0.003432,
+  "saving_pct": 33.0,
+  "seconds": 18.1,
+  "answer_chars": 647,
+  "error": "",
+  "receipt": {
+   "total_cost": 0.002301,
+   "calls": 3,
+   "tokens_in": 1530,
+   "tokens_out": 1900,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 0.002301
+   },
+   "by_model": {
+    "deepseek/deepseek-v4.1-flash": 0.002301,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.003432,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, no retries and no reasoning tokens (so the real cost would usually be higher)"
+   },
+   "saving_pct": 33.0
+  }
+ },
+ {
+  "id": "en09",
+  "lang": "en",
+  "expect": {
+   "split": false,
+   "answer": "text",
+   "tier": 4,
+   "type": "analysis"
+  },
+  "gate": {
+   "split": 0.45,
+   "tier": 4,
+   "tier_raw": 4,
+   "tier_confidence": 0.48,
+   "raised": true,
+   "task_type": "analysis",
+   "answer_type": "text"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 4,
+  "tier_used": 4,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "anthropic/claude-sonnet-5"
+  ],
+  "cost": 0.024582,
+  "baseline": 0.024168,
+  "saving_pct": -1.7,
+  "seconds": 33.2,
+  "answer_chars": 4749,
+  "error": "",
+  "receipt": {
+   "total_cost": 0.024582,
+   "calls": 3,
+   "tokens_in": 2954,
+   "tokens_out": 2432,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 0.024582
+   },
+   "by_model": {
+    "anthropic/claude-sonnet-5": 0.024582,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.024168,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, no retries and no reasoning tokens (so the real cost would usually be higher)"
+   },
+   "saving_pct": -1.7
+  }
+ },
+ {
+  "id": "en10",
+  "lang": "en",
+  "expect": {
+   "split": true,
+   "answer": "text",
+   "tier": 3,
+   "type": "writing"
+  },
+  "gate": {
+   "split": 0.96,
+   "tier": 3,
+   "tier_raw": 3,
+   "tier_confidence": 0.98,
+   "raised": false,
+   "task_type": "writing",
+   "answer_type": "text"
+  },
+  "kind": "split",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 3,
+  "tier_used": 3,
+  "below": false,
+  "subtasks": 5,
+  "jev_solved": 0,
+  "models": [
+   "anthropic/claude-sonnet-5",
+   "deepseek/deepseek-v4.1-flash",
+   "openai/gpt-6-luna"
+  ],
+  "cost": 0.041958,
+  "baseline": 0.10518,
+  "saving_pct": 60.1,
+  "seconds": 47.7,
+  "answer_chars": 18305,
+  "error": "",
+  "receipt": {
+   "total_cost": 0.041958,
+   "calls": 19,
+   "tokens_in": 23294,
+   "tokens_out": 6870,
+   "by_role": {
+    "assembly": 0.000816,
+    "checks": 0.0,
+    "decisions": 0.0,
+    "planning": 0.003425,
+    "work": 0.037718
+   },
+   "by_model": {
+    "anthropic/claude-sonnet-5": 0.03443,
+    "deepseek/deepseek-v4.1-flash": 0.00392,
+    "google/gemini-3.8-flash": 0.003425,
+    "openai/gpt-6-luna": 0.000184,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.10518,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, scaled by the hidden reasoning SIAC's own models used in this run, with no retries",
+    "reasoning_factor": 1.14
+   },
+   "saving_pct": 60.1
+  }
+ },
+ {
+  "id": "en11",
+  "lang": "en",
+  "expect": {
+   "split": true,
+   "answer": "text",
+   "tier": 2,
+   "type": "analysis"
+  },
+  "gate": {
+   "split": 0.84,
+   "tier": 3,
+   "tier_raw": 2,
+   "tier_confidence": 0.39,
+   "raised": true,
+   "task_type": "analysis",
+   "answer_type": "text"
+  },
+  "kind": "split",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 2,
+  "tier_used": 3,
+  "below": false,
+  "subtasks": 2,
+  "jev_solved": 1,
+  "models": [
+   "deepseek/deepseek-v4.1-flash",
+   "typesafe-ai/jev"
+  ],
+  "cost": 0.014191,
+  "baseline": 0.007524,
+  "saving_pct": -88.6,
+  "seconds": 37.6,
+  "answer_chars": 1400,
+  "error": "",
+  "receipt": {
+   "total_cost": 0.014191,
+   "calls": 8,
+   "tokens_in": 6917,
+   "tokens_out": 2423,
+   "by_role": {
+    "assembly": 0.001272,
+    "checks": 0.0,
+    "decisions": 0.0,
+    "planning": 0.012328,
+    "work": 0.000591
+   },
+   "by_model": {
+    "anthropic/claude-sonnet-5": 0.012328,
+    "deepseek/deepseek-v4.1-flash": 0.001863,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.007524,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, no retries and no reasoning tokens (so the real cost would usually be higher)"
+   },
+   "saving_pct": -88.6
+  }
+ },
+ {
+  "id": "en12",
+  "lang": "en",
+  "expect": {
+   "split": false,
+   "answer": "text",
+   "tier": 1,
+   "type": "translation"
+  },
+  "gate": {
+   "split": 0.03,
+   "tier": 1,
+   "tier_raw": 1,
+   "tier_confidence": 1.0,
+   "raised": false,
+   "task_type": "translation",
+   "answer_type": "text"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 1,
+  "tier_used": 1,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "openai/gpt-6-luna"
+  ],
+  "cost": 1.2e-05,
+  "baseline": 0.0004,
+  "saving_pct": 97.1,
+  "seconds": 3.0,
+  "answer_chars": 37,
+  "error": "",
+  "receipt": {
+   "total_cost": 1.2e-05,
+   "calls": 3,
+   "tokens_in": 1366,
+   "tokens_out": 13,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 1.2e-05
+   },
+   "by_model": {
+    "openai/gpt-6-luna": 1.2e-05,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.0004,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, no retries and no reasoning tokens (so the real cost would usually be higher)"
+   },
+   "saving_pct": 97.1
+  }
+ },
+ {
+  "id": "en13",
+  "lang": "en",
+  "expect": {
+   "split": false,
+   "answer": "text",
+   "tier": 3,
+   "type": "code"
+  },
+  "gate": {
+   "split": 0.63,
+   "tier": 3,
+   "tier_raw": 3,
+   "tier_confidence": 0.99,
+   "raised": false,
+   "task_type": "analysis",
+   "answer_type": "text"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 3,
+  "tier_used": 3,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "anthropic/claude-sonnet-5"
+  ],
+  "cost": 0.020066,
+  "baseline": 0.02578,
+  "saving_pct": 22.2,
+  "seconds": 23.7,
+  "answer_chars": 5069,
+  "error": "",
+  "receipt": {
+   "total_cost": 0.020066,
+   "calls": 3,
+   "tokens_in": 2906,
+   "tokens_out": 1979,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 0.020066
+   },
+   "by_model": {
+    "anthropic/claude-sonnet-5": 0.020066,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.02578,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, no retries and no reasoning tokens (so the real cost would usually be higher)"
+   },
+   "saving_pct": 22.2
+  }
+ },
+ {
+  "id": "en14",
+  "lang": "en",
+  "expect": {
+   "split": true,
+   "answer": "text",
+   "tier": 3,
+   "type": "analysis"
+  },
+  "gate": {
+   "split": 0.92,
+   "tier": 3,
+   "tier_raw": 3,
+   "tier_confidence": 0.93,
+   "raised": false,
+   "task_type": "analysis",
+   "answer_type": "text"
+  },
+  "kind": "split",
+  "status": "partial",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 3,
+  "tier_used": 3,
+  "below": false,
+  "subtasks": 6,
+  "jev_solved": 0,
+  "models": [
+   "anthropic/claude-opus-5.5",
+   "anthropic/claude-sonnet-5"
+  ],
+  "cost": 0.153943,
+  "baseline": 0.177288,
+  "saving_pct": 13.2,
+  "seconds": 54.5,
+  "answer_chars": 13066,
+  "error": "budget of $0.15 reached (spent $0.1539)",
+  "receipt": {
+   "total_cost": 0.153943,
+   "calls": 16,
+   "tokens_in": 13534,
+   "tokens_out": 11677,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "planning": 0.004463,
+    "work": 0.14948
+   },
+   "by_model": {
+    "anthropic/claude-opus-5.5": 0.08126,
+    "anthropic/claude-sonnet-5": 0.06822,
+    "google/gemini-3.8-flash": 0.004463,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.177288,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, scaled by the hidden reasoning SIAC's own models used in this run, with no retries",
+    "reasoning_factor": 2.71
+   },
+   "saving_pct": 13.2
+  }
+ },
+ {
+  "id": "es01",
+  "lang": "es",
+  "expect": {
+   "split": false,
+   "answer": "text",
+   "tier": 1,
+   "type": "writing"
+  },
+  "gate": {
+   "split": 0.03,
+   "tier": 1,
+   "tier_raw": 1,
+   "tier_confidence": 1.0,
+   "raised": false,
+   "task_type": "writing",
+   "answer_type": "text"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 1,
+  "tier_used": 1,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "openai/gpt-6-luna"
+  ],
+  "cost": 1.5e-05,
+  "baseline": 0.00058,
+  "saving_pct": 97.5,
+  "seconds": 2.3,
+  "answer_chars": 46,
+  "error": "",
+  "receipt": {
+   "total_cost": 1.5e-05,
+   "calls": 3,
+   "tokens_in": 1357,
+   "tokens_out": 20,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 1.5e-05
+   },
+   "by_model": {
+    "openai/gpt-6-luna": 1.5e-05,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.00058,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, scaled by the hidden reasoning SIAC's own models used in this run, with no retries",
+    "reasoning_factor": 1.82
+   },
+   "saving_pct": 97.5
+  }
+ },
+ {
+  "id": "es02",
+  "lang": "es",
+  "expect": {
+   "split": false,
+   "answer": "choice",
+   "tier": 1,
+   "type": "analysis"
+  },
+  "gate": {
+   "split": 0.04,
+   "tier": 1,
+   "tier_raw": 1,
+   "tier_confidence": 1.0,
+   "raised": false,
+   "task_type": "analysis",
+   "answer_type": "choice"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 1,
+  "tier_used": 1,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "openai/gpt-6-luna"
+  ],
+  "cost": 1.2e-05,
+  "baseline": 0.00046,
+  "saving_pct": 97.5,
+  "seconds": 2.0,
+  "answer_chars": 13,
+  "error": "",
+  "receipt": {
+   "total_cost": 1.2e-05,
+   "calls": 3,
+   "tokens_in": 1418,
+   "tokens_out": 9,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 1.2e-05
+   },
+   "by_model": {
+    "openai/gpt-6-luna": 1.2e-05,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.00046,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, scaled by the hidden reasoning SIAC's own models used in this run, with no retries",
+    "reasoning_factor": 3.0
+   },
+   "saving_pct": 97.5
+  }
+ },
+ {
+  "id": "es03",
+  "lang": "es",
+  "expect": {
+   "split": false,
+   "answer": "yesno",
+   "tier": 1,
+   "type": "analysis"
+  },
+  "gate": {
+   "split": 0.04,
+   "tier": 1,
+   "tier_raw": 1,
+   "tier_confidence": 1.0,
+   "raised": false,
+   "task_type": "analysis",
+   "answer_type": "yesno"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 1,
+  "tier_used": 1,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "openai/gpt-6-luna"
+  ],
+  "cost": 2.2e-05,
+  "baseline": 0.00088,
+  "saving_pct": 97.5,
+  "seconds": 2.3,
+  "answer_chars": 96,
+  "error": "",
+  "receipt": {
+   "total_cost": 2.2e-05,
+   "calls": 3,
+   "tokens_in": 1490,
+   "tokens_out": 27,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 2.2e-05
+   },
+   "by_model": {
+    "openai/gpt-6-luna": 2.2e-05,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.00088,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, scaled by the hidden reasoning SIAC's own models used in this run, with no retries",
+    "reasoning_factor": 1.12
+   },
+   "saving_pct": 97.5
+  }
+ },
+ {
+  "id": "es04",
+  "lang": "es",
+  "expect": {
+   "split": false,
+   "answer": "score",
+   "tier": 1,
+   "type": "analysis"
+  },
+  "gate": {
+   "split": 0.06,
+   "tier": 4,
+   "tier_raw": 4,
+   "tier_confidence": 0.23,
+   "raised": false,
+   "task_type": "analysis",
+   "answer_type": "score"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 4,
+  "tier_used": 4,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "anthropic/claude-sonnet-5"
+  ],
+  "cost": 0.00473,
+  "baseline": 0.00936,
+  "saving_pct": 49.5,
+  "seconds": 9.8,
+  "answer_chars": 1147,
+  "error": "",
+  "receipt": {
+   "total_cost": 0.00473,
+   "calls": 3,
+   "tokens_in": 1743,
+   "tokens_out": 453,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 0.00473
+   },
+   "by_model": {
+    "anthropic/claude-sonnet-5": 0.00473,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.00936,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, scaled by the hidden reasoning SIAC's own models used in this run, with no retries",
+    "reasoning_factor": 1.58
+   },
+   "saving_pct": 49.5
+  }
+ },
+ {
+  "id": "es05",
+  "lang": "es",
+  "expect": {
+   "split": false,
+   "answer": "text",
+   "tier": 2,
+   "type": "writing"
+  },
+  "gate": {
+   "split": 0.05,
+   "tier": 2,
+   "tier_raw": 2,
+   "tier_confidence": 0.99,
+   "raised": false,
+   "task_type": "writing",
+   "answer_type": "text"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 2,
+  "tier_used": 2,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "deepseek/deepseek-v4.1-flash"
+  ],
+  "cost": 0.00032,
+  "baseline": 0.00526,
+  "saving_pct": 93.9,
+  "seconds": 3.3,
+  "answer_chars": 908,
+  "error": "",
+  "receipt": {
+   "total_cost": 0.00032,
+   "calls": 3,
+   "tokens_in": 1651,
+   "tokens_out": 251,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 0.00032
+   },
+   "by_model": {
+    "deepseek/deepseek-v4.1-flash": 0.00032,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.00526,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, scaled by the hidden reasoning SIAC's own models used in this run, with no retries",
+    "reasoning_factor": 1.11
+   },
+   "saving_pct": 93.9
+  }
+ },
+ {
+  "id": "es06",
+  "lang": "es",
+  "expect": {
+   "split": false,
+   "answer": "text",
+   "tier": 2,
+   "type": "research"
+  },
+  "gate": {
+   "split": 0.23,
+   "tier": 2,
+   "tier_raw": 2,
+   "tier_confidence": 0.96,
+   "raised": false,
+   "task_type": "research",
+   "answer_type": "text"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 2,
+  "tier_used": 2,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "deepseek/deepseek-v4.1-flash"
+  ],
+  "cost": 0.000273,
+  "baseline": 0.004592,
+  "saving_pct": 94.0,
+  "seconds": 3.4,
+  "answer_chars": 875,
+  "error": "",
+  "receipt": {
+   "total_cost": 0.000273,
+   "calls": 3,
+   "tokens_in": 1588,
+   "tokens_out": 214,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 0.000273
+   },
+   "by_model": {
+    "deepseek/deepseek-v4.1-flash": 0.000273,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.004592,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, scaled by the hidden reasoning SIAC's own models used in this run, with no retries",
+    "reasoning_factor": 1.0
+   },
+   "saving_pct": 94.0
+  }
+ },
+ {
+  "id": "es07",
+  "lang": "es",
+  "expect": {
+   "split": false,
+   "answer": "text",
+   "tier": 2,
+   "type": "code"
+  },
+  "gate": {
+   "split": 0.06,
+   "tier": 2,
+   "tier_raw": 2,
+   "tier_confidence": 0.81,
+   "raised": false,
+   "task_type": "code",
+   "answer_type": "text"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 2,
+  "tier_used": 2,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "deepseek/deepseek-v4.1-flash"
+  ],
+  "cost": 0.000135,
+  "baseline": 0.002168,
+  "saving_pct": 93.8,
+  "seconds": 1.3,
+  "answer_chars": 235,
+  "error": "",
+  "receipt": {
+   "total_cost": 0.000135,
+   "calls": 3,
+   "tokens_in": 1547,
+   "tokens_out": 92,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 0.000135
+   },
+   "by_model": {
+    "deepseek/deepseek-v4.1-flash": 0.000135,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.002168,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, scaled by the hidden reasoning SIAC's own models used in this run, with no retries",
+    "reasoning_factor": 1.59
+   },
+   "saving_pct": 93.8
+  }
+ },
+ {
+  "id": "es08",
+  "lang": "es",
+  "expect": {
+   "split": false,
+   "answer": "text",
+   "tier": 2,
+   "type": "writing"
+  },
+  "gate": {
+   "split": 0.05,
+   "tier": 2,
+   "tier_raw": 2,
+   "tier_confidence": 1.0,
+   "raised": false,
+   "task_type": "writing",
+   "answer_type": "text"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 2,
+  "tier_used": 2,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "deepseek/deepseek-v4.1-flash"
+  ],
+  "cost": 0.000217,
+  "baseline": 0.003584,
+  "saving_pct": 93.9,
+  "seconds": 2.3,
+  "answer_chars": 521,
+  "error": "",
+  "receipt": {
+   "total_cost": 0.000217,
+   "calls": 3,
+   "tokens_in": 1542,
+   "tokens_out": 167,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 0.000217
+   },
+   "by_model": {
+    "deepseek/deepseek-v4.1-flash": 0.000217,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.003584,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, scaled by the hidden reasoning SIAC's own models used in this run, with no retries",
+    "reasoning_factor": 1.28
+   },
+   "saving_pct": 93.9
+  }
+ },
+ {
+  "id": "es09",
+  "lang": "es",
+  "expect": {
+   "split": false,
+   "answer": "text",
+   "tier": 4,
+   "type": "code"
+  },
+  "gate": {
+   "split": 0.8,
+   "tier": 4,
+   "tier_raw": 4,
+   "tier_confidence": 0.46,
+   "raised": false,
+   "task_type": "analysis",
+   "answer_type": "text"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 4,
+  "tier_used": 4,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "anthropic/claude-sonnet-5"
+  ],
+  "cost": 0.026262,
+  "baseline": 0.05234,
+  "saving_pct": 49.8,
+  "seconds": 29.0,
+  "answer_chars": 5385,
+  "error": "",
+  "receipt": {
+   "total_cost": 0.026262,
+   "calls": 3,
+   "tokens_in": 3311,
+   "tokens_out": 2597,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 0.026262
+   },
+   "by_model": {
+    "anthropic/claude-sonnet-5": 0.026262,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.05234,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, scaled by the hidden reasoning SIAC's own models used in this run, with no retries",
+    "reasoning_factor": 1.93
+   },
+   "saving_pct": 49.8
+  }
+ },
+ {
+  "id": "es10",
+  "lang": "es",
+  "expect": {
+   "split": true,
+   "answer": "text",
+   "tier": 3,
+   "type": "writing"
+  },
+  "gate": {
+   "split": 0.95,
+   "tier": 3,
+   "tier_raw": 3,
+   "tier_confidence": 0.99,
+   "raised": false,
+   "task_type": "writing",
+   "answer_type": "text"
+  },
+  "kind": "split",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 3,
+  "tier_used": 3,
+  "below": false,
+  "subtasks": 5,
+  "jev_solved": 0,
+  "models": [
+   "anthropic/claude-sonnet-5",
+   "deepseek/deepseek-v4.1-flash"
+  ],
+  "cost": 0.067293,
+  "baseline": 0.16708,
+  "saving_pct": 59.7,
+  "seconds": 56.7,
+  "answer_chars": 23629,
+  "error": "",
+  "receipt": {
+   "total_cost": 0.067293,
+   "calls": 19,
+   "tokens_in": 29415,
+   "tokens_out": 10612,
+   "by_role": {
+    "assembly": 0.00106,
+    "checks": 0.0,
+    "decisions": 0.0,
+    "planning": 0.004255,
+    "work": 0.061978
+   },
+   "by_model": {
+    "anthropic/claude-sonnet-5": 0.056412,
+    "deepseek/deepseek-v4.1-flash": 0.006626,
+    "google/gemini-3.8-flash": 0.004255,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.16708,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, scaled by the hidden reasoning SIAC's own models used in this run, with no retries",
+    "reasoning_factor": 1.41
+   },
+   "saving_pct": 59.7
+  }
+ },
+ {
+  "id": "es11",
+  "lang": "es",
+  "expect": {
+   "split": true,
+   "answer": "text",
+   "tier": 2,
+   "type": "analysis"
+  },
+  "gate": {
+   "split": 0.77,
+   "tier": 1,
+   "tier_raw": 1,
+   "tier_confidence": 0.94,
+   "raised": false,
+   "task_type": "math",
+   "answer_type": "text"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": false,
+  "answer_ok": true,
+  "tier_raw": 1,
+  "tier_used": 1,
+  "below": true,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "openai/gpt-6-luna"
+  ],
+  "cost": 6.4e-05,
+  "baseline": 0.002496,
+  "saving_pct": 97.5,
+  "seconds": 2.3,
+  "answer_chars": 296,
+  "error": "",
+  "receipt": {
+   "total_cost": 6.4e-05,
+   "calls": 3,
+   "tokens_in": 1690,
+   "tokens_out": 104,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 6.4e-05
+   },
+   "by_model": {
+    "openai/gpt-6-luna": 6.4e-05,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.002496,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, scaled by the hidden reasoning SIAC's own models used in this run, with no retries",
+    "reasoning_factor": 1.41
+   },
+   "saving_pct": 97.5
+  }
+ },
+ {
+  "id": "es12",
+  "lang": "es",
+  "expect": {
+   "split": false,
+   "answer": "text",
+   "tier": 1,
+   "type": "translation"
+  },
+  "gate": {
+   "split": 0.03,
+   "tier": 1,
+   "tier_raw": 1,
+   "tier_confidence": 1.0,
+   "raised": false,
+   "task_type": "translation",
+   "answer_type": "text"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 1,
+  "tier_used": 1,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "openai/gpt-6-luna"
+  ],
+  "cost": 1.2e-05,
+  "baseline": 0.000472,
+  "saving_pct": 97.5,
+  "seconds": 2.2,
+  "answer_chars": 31,
+  "error": "",
+  "receipt": {
+   "total_cost": 1.2e-05,
+   "calls": 3,
+   "tokens_in": 1373,
+   "tokens_out": 13,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 1.2e-05
+   },
+   "by_model": {
+    "openai/gpt-6-luna": 1.2e-05,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.000472,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, scaled by the hidden reasoning SIAC's own models used in this run, with no retries",
+    "reasoning_factor": 1.86
+   },
+   "saving_pct": 97.5
+  }
+ },
+ {
+  "id": "es13",
+  "lang": "es",
+  "expect": {
+   "split": false,
+   "answer": "text",
+   "tier": 4,
+   "type": "analysis"
+  },
+  "gate": {
+   "split": 0.64,
+   "tier": 4,
+   "tier_raw": 3,
+   "tier_confidence": 0.37,
+   "raised": true,
+   "task_type": "analysis",
+   "answer_type": "text"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": true,
+  "tier_raw": 3,
+  "tier_used": 4,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "anthropic/claude-sonnet-5"
+  ],
+  "cost": 0.021692,
+  "baseline": 0.043184,
+  "saving_pct": 49.8,
+  "seconds": 26.6,
+  "answer_chars": 4794,
+  "error": "",
+  "receipt": {
+   "total_cost": 0.021692,
+   "calls": 3,
+   "tokens_in": 3095,
+   "tokens_out": 2139,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 0.021692
+   },
+   "by_model": {
+    "anthropic/claude-sonnet-5": 0.021692,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.043184,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, scaled by the hidden reasoning SIAC's own models used in this run, with no retries",
+    "reasoning_factor": 1.79
+   },
+   "saving_pct": 49.8
+  }
+ },
+ {
+  "id": "es14",
+  "lang": "es",
+  "expect": {
+   "split": false,
+   "answer": "choice",
+   "tier": 2,
+   "type": "analysis"
+  },
+  "gate": {
+   "split": 0.16,
+   "tier": 3,
+   "tier_raw": 3,
+   "tier_confidence": 0.98,
+   "raised": false,
+   "task_type": "analysis",
+   "answer_type": "text"
+  },
+  "kind": "llm",
+  "status": "done",
+  "split_ok": true,
+  "answer_ok": false,
+  "tier_raw": 3,
+  "tier_used": 3,
+  "below": false,
+  "subtasks": 0,
+  "jev_solved": 0,
+  "models": [
+   "anthropic/claude-sonnet-5"
+  ],
+  "cost": 0.007752,
+  "baseline": 0.01526,
+  "saving_pct": 49.2,
+  "seconds": 10.7,
+  "answer_chars": 1684,
+  "error": "",
+  "receipt": {
+   "total_cost": 0.007752,
+   "calls": 3,
+   "tokens_in": 2071,
+   "tokens_out": 744,
+   "by_role": {
+    "checks": 0.0,
+    "decisions": 0.0,
+    "work": 0.007752
+   },
+   "by_model": {
+    "anthropic/claude-sonnet-5": 0.007752,
+    "typesafe-ai/jev": 0.0
+   },
+   "baseline": {
+    "model": "anthropic/claude-opus-5.5",
+    "estimated_cost": 0.01526,
+    "method": "one call to the baseline model with this request and an answer as long as SIAC's, scaled by the hidden reasoning SIAC's own models used in this run, with no retries",
+    "reasoning_factor": 1.77
+   },
+   "saving_pct": 49.2
+  }
+ }
+]

@@ -121,11 +121,11 @@ class SimulatedGateway:
         subs = []
         for i, p in enumerate(parts[:12], 1):
             decide = any(k in p.lower() for k in ("decide", "whether", "classify", "clasifica", "digues si", "for each"))
-            sub = {"id": f"t{i}", "title": p[:60], "prompt": p, "success_criteria": "Does what the step asks.",
+            sub = {"id": f"t{i}", "title": p, "prompt": p, "success_criteria": "Does what the step asks.",
                    "answer_type": "choice" if decide else "text", "decision": None,
                    "depends_on": [f"t{i - 1}"] if i > 1 and decide else []}
             if decide:
-                sub["decision"] = {"question": "Which category fits this item?",
+                sub["decision"] = {"question": "(simulated) Which category fits each item?",
                                    "options": {"a": "first kind", "b": "second kind", "c": "third kind"},
                                    "items": [{"id": str(j), "text": f"item {j} of {p[:40]}"} for j in range(1, 4)]}
             subs.append(sub)

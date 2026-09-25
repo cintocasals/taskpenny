@@ -64,9 +64,10 @@ request
 
 ## What we have learned so far
 
-- Jev's gate has been accurate on our development prompts in English, Catalan and Spanish: when to split, what kind of
-  answer is expected, and a tier that is not too low.
-- Simple requests save the most: they go straight to a cheap model.
+- On 42 development prompts in English, Catalan and Spanish, Jev's gate chose well when to split (41 of 42) and what
+  kind of answer was expected (41 of 42), and SIAC cost 41% less than the estimate for one strong model.
+  Details and limits in [`bench/DEV_RESULTS.md`](bench/DEV_RESULTS.md).
+- Simple requests save the most (about 95% on basic ones): they go straight to a cheap model.
 - Splitting only pays when the parts can go to cheaper models than the whole would need. So SIAC splits only when Jev
   is clearly sure, never rewrites the parts to assemble them, and never falls back to a more expensive model.
 - Public, reproducible numbers come with the v0.3 benchmark.
@@ -75,8 +76,8 @@ request
 
 | Version | What |
 |---|---|
-| v0.1 | Core loop from the terminal: gate, planner, router, executor, verifier, aggregator, cost receipt (done, tuning) |
-| v0.2 | Live task tree in the browser, run replay, export, English, Catalan and Spanish UI (done, tuning) |
+| v0.1 | Core loop from the terminal: gate, planner, router, executor, verifier, aggregator, cost receipt (done) |
+| v0.2 | Live task tree in the browser, run replay, export, English, Catalan and Spanish UI (done) |
 | v0.3 | Public benchmark: SIAC against a single strong model |
 | v0.4 | OpenAI-compatible endpoint, direct provider keys, local models with Ollama, Docker |
 | v1.0 | Public release |
@@ -87,4 +88,4 @@ The catalog lives in [`src/siac/models.yaml`](src/siac/models.yaml): one entry p
 
 ## License
 
-MIT. Made by [Cinto Casals](https://cintocasals.com) · SerIA Nativa.
+MIT. Made by [Cinto Casals](https://github.com/cintocasals) · SerIA Nativa.

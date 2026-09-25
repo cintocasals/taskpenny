@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 # Provisional distribution name: "siac" is already taken on PyPI. Final name before v1.0.
 name = "siac-ai"
-version = "0.1.0.dev0"
+version = "0.2.0"
 description = "Split a big prompt into small tasks and send each one to the cheapest model that can do it well. Decisions by Jev."
 readme = "README.md"
 license = "MIT"

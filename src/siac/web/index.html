@@ -84,6 +84,7 @@ a.ghost{color:inherit;text-decoration:none;display:inline-block}
 .receipt div{display:grid;grid-template-columns:1fr auto;gap:12px;border-bottom:1px solid var(--soft);padding:3px 0}
 .receipt .tot{font-weight:600;border-bottom:1px solid var(--ink)}
 .receipt p{font-family:var(--sans);font-size:13px;color:var(--lead);margin:8px 0 0}
+.legend{margin:0;padding:8px 14px 12px;font-size:12px;color:var(--lead);border-top:1px solid var(--soft)}
 .log{max-height:260px;overflow:auto;font-family:var(--mono);font-size:12px;padding:8px 14px}
 .log div{display:grid;grid-template-columns:52px 70px 1fr;gap:8px;padding:2px 0;border-bottom:1px solid var(--soft)}
 .log .t{color:var(--lead)}
@@ -94,7 +95,8 @@ a.ghost{color:inherit;text-decoration:none;display:inline-block}
 .err{color:var(--oxide);font-family:var(--mono);font-size:13px;padding:0 14px 12px}
 footer{font-family:var(--mono);font-size:11px;color:var(--lead);border-top:1px solid var(--line);padding-top:10px}
 @media (max-width:860px){.main{grid-template-columns:1fr}}
-@media (max-width:520px){.meter{grid-template-columns:1fr 1fr}.meter .save{grid-column:span 2}}
+@media (max-width:520px){.meter{grid-template-columns:1fr 1fr}.meter .save{grid-column:span 2}
+  .history .row{grid-template-columns:1fr auto auto auto}.history .req{grid-column:1 / -1;white-space:normal}}
 @media (prefers-reduced-motion:no-preference){.running .glyph{animation:blink 1s steps(2,end) infinite}@keyframes blink{50%{opacity:.35}}}
 </style>
 </head>
@@ -138,6 +140,7 @@ footer{font-family:var(--mono);font-size:11px;color:var(--lead);border-top:1px s
     <div class="panel">
       <div class="head"><span class="label" data-i18n="tree"></span><span class="cost" id="status"></span></div>
       <div class="tree" id="tree"><p class="empty" data-i18n="treeEmpty"></p></div>
+      <p class="legend" data-i18n="legend"></p>
       <div class="err" id="err" hidden></div>
     </div>
     <div class="panel">
@@ -184,10 +187,11 @@ const I18N = {
     gate:"Jev decided", split:"split", tier:"tier", conf:"confidence", raised:"raised one tier (Jev unsure)", type:"task type", answerType:"answer",
     model:"model", attempts:"attempts", cost:"cost", status:"status", waiting:"waiting", jev:"JEV", done:"done", failed:"failed", partial:"stopped early",
     footer:"SIAC · open source (MIT) · by Cinto Casals, SerIA Nativa. Decisions by Jev (TypeSafe AI) through Vercel AI Gateway. Keys stay on your computer.",
+    legend:"Tier 1 basic to 4 critical: Jev picks it and SIAC uses the cheapest model of that tier. JEV: solved by Jev, no language model. Split %: how likely Jev thinks splitting helps. Check: how likely Jev thinks a result meets its criteria (0.6 passes). Gap filling: a cheap model adds only what the final check found missing.",
     flow:"What SIAC did", receiptL:"Cost receipt", receipt:"Cost receipt", total:"Total", simulated:"simulated: catalog prices, placeholder answers",
-    roles:{planning:"Planning (strong model)", work:"Work (cheapest models)", decisions:"Jev decisions", checks:"Jev checks", assembly:"Assembly and gap filling"},
-    stages:{gate:"Jev gate", plan:"plan", run:"tasks by models", jevs:"tasks solved by Jev", checks:"Jev checks", assemble:"assembly", final:"final check", calls:"calls"},
-    baseMethod:"Estimate: the same request sent once to the baseline model, with an answer as long as SIAC's, no retries and no reasoning tokens. A real run with that model would usually cost more.",
+    roles:{planning:"Planning", work:"Work (cheapest models)", decisions:"Jev decisions", checks:"Jev checks", assembly:"Assembly and gap filling"},
+    stages:{gate:"Jev gate decisions", plan:"plan", run:"tasks by models", jevs:"tasks solved by Jev", checks:"Jev checks", assemble:"assembly", final:"final check", calls:"calls"},
+    baseMethod:"Estimate: the same request sent once to the baseline model, with an answer as long as SIAC's, scaled by the hidden reasoning SIAC's own models used in this run, and no retries.",
     tipTier:"Tier: 1 basic, 2 standard, 3 advanced, 4 critical. Jev picks it; SIAC uses the cheapest model of that tier.",
     tipSplit:"Jev's probability that splitting this request helps.", tipConf:"How sure Jev was of the tier (0 to 1). Below 0.6 SIAC goes one tier up.",
     tipCheck:"Jev's probability that the result meets the task's success criteria. 0.6 or more passes.",
@@ -209,10 +213,11 @@ const I18N = {
     gate:"Jev ha decidit", split:"dividir", tier:"nivell", conf:"confiança", raised:"un nivell amunt (Jev dubtava)", type:"tipus de tasca", answerType:"resposta",
     model:"model", attempts:"intents", cost:"cost", status:"estat", waiting:"en espera", jev:"JEV", done:"fet", failed:"fallat", partial:"aturat abans",
     footer:"SIAC · codi obert (MIT) · de Cinto Casals, SerIA Nativa. Decideix Jev (TypeSafe AI) per Vercel AI Gateway. Les claus no surten del teu ordinador.",
+    legend:"Nivell 1 bàsic a 4 crític: el tria Jev i SIAC fa servir el model més barat d'aquest nivell. JEV: ho ha resolt Jev, sense model de llenguatge. Dividir %: com de probable veu Jev que dividir ajudi. Comprovació: com de probable veu Jev que el resultat compleixi el criteri (amb 0,6 passa). Complements: un model barat afegeix només el que la comprovació final troba a faltar.",
     flow:"Què ha fet SIAC", receipt:"Rebut de cost", total:"Total", simulated:"simulat: preus del catàleg, respostes de mostra",
-    roles:{planning:"Planificació (model potent)", work:"Feina (models més barats)", decisions:"Decisions de Jev", checks:"Comprovacions de Jev", assembly:"Unió i complements"},
-    stages:{gate:"porta de Jev", plan:"pla", run:"tasques fetes per models", jevs:"tasques resoltes per Jev", checks:"comprovacions de Jev", assemble:"unió", final:"comprovació final", calls:"crides"},
-    baseMethod:"Estimació: la mateixa petició enviada una sola vegada al model de referència, amb una resposta tan llarga com la de SIAC, sense reintents ni tokens de raonament. Una execució real amb aquest model normalment costaria més.",
+    roles:{planning:"Planificació", work:"Feina (models més barats)", decisions:"Decisions de Jev", checks:"Comprovacions de Jev", assembly:"Unió i complements"},
+    stages:{gate:"decisions del filtre de Jev", plan:"pla", run:"tasques fetes per models", jevs:"tasques resoltes per Jev", checks:"comprovacions de Jev", assemble:"unió", final:"comprovació final", calls:"crides"},
+    baseMethod:"Estimació: la mateixa petició enviada una sola vegada al model de referència, amb una resposta tan llarga com la de SIAC, ajustada pel raonament ocult que han fet servir els models de SIAC en aquesta execució, i sense reintents.",
     tipTier:"Nivell: 1 bàsic, 2 estàndard, 3 avançat, 4 crític. El tria Jev; SIAC fa servir el model més barat d'aquest nivell.",
     tipSplit:"Probabilitat, segons Jev, que dividir aquesta petició ajudi.", tipConf:"Com n'estava de segur Jev del nivell (de 0 a 1). Per sota de 0,6, SIAC puja un nivell.",
     tipCheck:"Probabilitat, segons Jev, que el resultat compleixi el criteri d'èxit de la tasca. Amb 0,6 o més, passa.",
@@ -222,7 +227,7 @@ const I18N = {
     ex1t:"Prepara el llançament del nostre nou curs en línia d'IA per a petites empreses: 1) defineix tres perfils de client, 2) escriu el text de la pàgina de venda per al perfil principal, 3) escriu una seqüència de benvinguda de tres correus, 4) proposa 10 idees de posts per a LinkedIn, i 5) per a cada idea, decideix si és educativa, promocional o de prova social.",
     ex2t:"Tinc aquests cinc comentaris de clients. Per a cadascun, digues si és un error, una petició de funcionalitat o un elogi, i després escriu un paràgraf de resum per a l'equip de producte. 1) «L'exportació a PDF es penja a Safari.» 2) «M'encantaria un mode fosc!» 3) «La millor eina de facturació que hem fet servir.» 4) «Els totals surten malament quan hi poso un descompte.» 5) «Afegiu el català als idiomes, si us plau.»",
     ex3t:"Escriu un correu curt i amable a un client per passar la reunió de demà a les 10 a dijous a la mateixa hora.",
-    ev:{run_started:"inici", gate:"porta", plan:"pla", route:"encamina", llm_call:"crida", verify:"comprova", repair:"repara", jev_solve:"Jev resol", fallback:"alternativa",
+    ev:{run_started:"inici", gate:"filtre", plan:"pla", route:"encamina", llm_call:"crida", verify:"comprova", repair:"repara", jev_solve:"Jev resol", fallback:"alternativa",
         model_fallback:"model refusat", aggregate:"uneix", final_check:"comprovació final", node_done:"fet", node_failed:"fallat", budget_exceeded:"pressupost", error:"error", run_done:"acabat"}},
   es: {tagline:"Divide una petición grande en tareas pequeñas y envía cada una al modelo más barato que la hace bien. Decide Jev.",
     language:"Idioma", request:"Tu petición", rootTitle:"Tu petición", examples:"Prueba", profile:"Proveedores", budget:"Presupuesto", dry:"Simulación (sin clave ni coste)",
@@ -234,10 +239,11 @@ const I18N = {
     gate:"Jev ha decidido", split:"dividir", tier:"nivel", conf:"confianza", raised:"un nivel más (Jev dudaba)", type:"tipo de tarea", answerType:"respuesta",
     model:"modelo", attempts:"intentos", cost:"coste", status:"estado", waiting:"en espera", jev:"JEV", done:"hecho", failed:"fallado", partial:"parado antes",
     footer:"SIAC · código abierto (MIT) · de Cinto Casals, SerIA Nativa. Decide Jev (TypeSafe AI) vía Vercel AI Gateway. Las claves no salen de tu ordenador.",
+    legend:"Nivel 1 básico a 4 crítico: lo elige Jev y SIAC usa el modelo más barato de ese nivel. JEV: lo ha resuelto Jev, sin modelo de lenguaje. Dividir %: lo probable que ve Jev que dividir ayude. Comprobación: lo probable que ve Jev que el resultado cumpla el criterio (con 0,6 pasa). Complementos: un modelo barato añade solo lo que la comprobación final echa en falta.",
     flow:"Qué ha hecho SIAC", receipt:"Recibo de coste", total:"Total", simulated:"simulado: precios del catálogo, respuestas de muestra",
-    roles:{planning:"Planificación (modelo potente)", work:"Trabajo (modelos más baratos)", decisions:"Decisiones de Jev", checks:"Comprobaciones de Jev", assembly:"Unión y complementos"},
-    stages:{gate:"puerta de Jev", plan:"plan", run:"tareas hechas por modelos", jevs:"tareas resueltas por Jev", checks:"comprobaciones de Jev", assemble:"unión", final:"comprobación final", calls:"llamadas"},
-    baseMethod:"Estimación: la misma petición enviada una sola vez al modelo de referencia, con una respuesta tan larga como la de SIAC, sin reintentos ni tokens de razonamiento. Una ejecución real con ese modelo normalmente costaría más.",
+    roles:{planning:"Planificación", work:"Trabajo (modelos más baratos)", decisions:"Decisiones de Jev", checks:"Comprobaciones de Jev", assembly:"Unión y complementos"},
+    stages:{gate:"decisiones del filtro de Jev", plan:"plan", run:"tareas hechas por modelos", jevs:"tareas resueltas por Jev", checks:"comprobaciones de Jev", assemble:"unión", final:"comprobación final", calls:"llamadas"},
+    baseMethod:"Estimación: la misma petición enviada una sola vez al modelo de referencia, con una respuesta tan larga como la de SIAC, ajustada por el razonamiento oculto que han usado los modelos de SIAC en esta ejecución, y sin reintentos.",
     tipTier:"Nivel: 1 básico, 2 estándar, 3 avanzado, 4 crítico. Lo elige Jev; SIAC usa el modelo más barato de ese nivel.",
     tipSplit:"Probabilidad, según Jev, de que dividir esta petición ayude.", tipConf:"Lo seguro que estaba Jev del nivel (de 0 a 1). Por debajo de 0,6, SIAC sube un nivel.",
     tipCheck:"Probabilidad, según Jev, de que el resultado cumpla el criterio de éxito de la tarea. Con 0,6 o más, pasa.",
@@ -247,7 +253,7 @@ const I18N = {
     ex1t:"Prepara el lanzamiento de nuestro nuevo curso online de IA para pequeñas empresas: 1) define tres perfiles de cliente, 2) escribe el texto de la página de venta para el perfil principal, 3) escribe una secuencia de bienvenida de tres correos, 4) propone 10 ideas de posts para LinkedIn, y 5) para cada idea, decide si es educativa, promocional o de prueba social.",
     ex2t:"Tengo estos cinco comentarios de clientes. Para cada uno, di si es un error, una petición de funcionalidad o un elogio, y después escribe un párrafo de resumen para el equipo de producto. 1) «La exportación a PDF se cuelga en Safari.» 2) «¡Me encantaría un modo oscuro!» 3) «La mejor herramienta de facturación que hemos usado.» 4) «Los totales salen mal cuando pongo un descuento.» 5) «Añadid el catalán a los idiomas, por favor.»",
     ex3t:"Escribe un correo corto y amable a un cliente para pasar la reunión de mañana a las 10 al jueves a la misma hora.",
-    ev:{run_started:"inicio", gate:"puerta", plan:"plan", route:"enruta", llm_call:"llamada", verify:"comprueba", repair:"repara", jev_solve:"Jev resuelve", fallback:"alternativa",
+    ev:{run_started:"inicio", gate:"filtro", plan:"plan", route:"enruta", llm_call:"llamada", verify:"comprueba", repair:"repara", jev_solve:"Jev resuelve", fallback:"alternativa",
         model_fallback:"modelo rechazado", aggregate:"une", final_check:"comprobación final", node_done:"hecho", node_failed:"fallado", budget_exceeded:"presupuesto", error:"error", run_done:"terminado"}}
 };
 const $ = id => document.getElementById(id);
@@ -383,7 +389,7 @@ function renderLog(){
     if (ev.type === "node_started" || ev.type === "llm_call") return;
     const d = document.createElement("div");
     let what = "";
-    if (ev.type === "gate") what = L.tier + " " + ev.tier + " · " + ev.task_type + " · " + L.split + " " + (ev.split * 100).toFixed(0) + "%";
+    if (ev.type === "gate") what = L.tier + " " + ev.tier + " · " + ((L.types && L.types[ev.task_type]) || ev.task_type) + " · " + L.split + " " + (ev.split * 100).toFixed(0) + "%";
     else if (ev.type === "plan") what = ev.subtasks.length + " · " + short(ev.model);
     else if (ev.type === "route" || ev.type === "aggregate") what = short(ev.model) + (ev.tier ? " T" + ev.tier : "");
     else if (ev.type === "verify" || ev.type === "final_check") what = (ev.ok ? "ok" : "✗") + " " + ev.probability;
@@ -401,17 +407,18 @@ function renderLog(){
 function renderFlow(){
   const box = $("flow"), fb = $("flow-box"); if (!S.nodes.root) { fb.hidden = true; return; }
   const ev = S.log, c = type => ev.filter(e => e.type === type).length;
-  const models = ev.filter(e => e.type === "llm_call" && e.role === "work").length;
+  const models = Object.values(S.nodes).filter(n => n.kind === "llm").length;
   const jevs = Object.values(S.nodes).filter(n => n.kind === "jev").length;
   const parts = [[c("gate"), L.stages.gate], [c("plan"), L.stages.plan], [models, L.stages.run], [jevs, L.stages.jevs],
     [c("verify"), L.stages.checks], [c("aggregate"), L.stages.assemble], [c("final_check"), L.stages.final]].filter(p => p[0]);
-  box.innerHTML = parts.map(p => "<span><b>" + p[0] + "</b> " + esc(p[1]) + "</span>").join("") +
-    (S.receipt ? "<span>= <b>" + S.receipt.calls + "</b> " + esc(L.stages.calls) + "</span>" : "");
+  box.innerHTML = parts.map(p => "<span>" + esc(p[1]) + ": <b>" + p[0] + "</b></span>").join("") +
+    (S.receipt ? "<span>" + esc(L.stages.calls) + ": <b>" + S.receipt.calls + "</b></span>" : "");
   fb.hidden = false;
 }
 function renderReceipt(){
   const rb = $("receipt-box"), r = S.receipt; if (!r) { rb.hidden = true; return; }
-  const rows = Object.entries(r.by_role).map(([k, v]) => "<div><span>" + esc((L.roles && L.roles[k]) || k) + "</span><span>" + money(v) + "</span></div>").join("");
+  const ORDER = ["decisions", "planning", "work", "checks", "assembly"];
+  const rows = Object.entries(r.by_role).sort((a, b) => ORDER.indexOf(a[0]) - ORDER.indexOf(b[0])).map(([k, v]) => "<div><span>" + esc((L.roles && L.roles[k]) || k) + "</span><span>" + money(v) + "</span></div>").join("");
   const models = Object.entries(r.by_model).map(([k, v]) => "<div><span>· " + esc(k) + "</span><span>" + money(v) + "</span></div>").join("");
   $("receipt").innerHTML = rows + '<div class="tot"><span>' + esc(L.total) + "</span><span>" + money(r.total_cost) + "</span></div>" + models +
     "<div><span>" + esc(L.baseline) + " · " + esc(r.baseline.model) + "</span><span>" + money(r.baseline.estimated_cost) + "</span></div><p>" + esc(L.baseMethod) + "</p>";
