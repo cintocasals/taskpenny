@@ -65,12 +65,34 @@ Catalan and Spanish requests, where SIAC used Opus or split the work.
   Vercel billed $0.46 more than the runner recorded; the likely cause, calls that timed out and were sent again,
   is fixed, and the runner now checks the real balance.
 
+## Checked on 50 new tasks, after two changes
+
+Two changes followed this report: a **ceiling** (SIAC's strongest model can be set to the model you would use
+anyway, here Sonnet 5) and **splitting only when it pays** (Jev gates every part first; if the parts would not
+go to clearly cheaper models, the request is done in one go). They were checked on 50 tasks SIAC had never seen:
+40 more Arena-Hard prompts and 10 new four-part requests (`tasks-holdout.jsonl`, same sources and seeds recorded),
+against Sonnet 5 with the same judge. Code: commit `f567a7c`.
+
+| Tasks | n | SIAC | Sonnet 5 alone | SIAC cost | As good or better | Wins / ties / losses |
+|---|---|---|---|---|---|---|
+| **All 50 new tasks** | 50 | $0.446 | $0.955 | **53% less** | **82%** | 11 / 30 / 9 |
+| Arena-Hard (new sample) | 40 | $0.400 | $0.840 | **52% less** | **80%** | 10 / 22 / 8 |
+| Four asks in one message (new) | 10 | $0.046 | $0.115 | **60% less** | **90%** | 1 / 8 / 1 |
+| Basic and standard (tier 1-2) | 26 | $0.039 | $0.384 | **90% less** | **96%** | 8 / 17 / 1 |
+| Advanced (tier 3) | 13 | $0.289 | $0.374 | 23% less | 62% | 2 / 6 / 5 |
+| Critical (tier 4, capped at Sonnet 5) | 5 | $0.088 | $0.130 | 32% less | 60% | 0 / 3 / 2 |
+| Split into parts | 6 | $0.030 | $0.066 | 54% less | 83% | 1 / 4 / 1 |
+
+On Arena-Hard, where the first run (14 other prompts, no ceiling) cost 1.3 times as much with 64% as good or
+better, SIAC now costs about half and is as good or better in 80%. The samples differ, so read this as a direction,
+not a precise gain. Five of eleven plans were dropped because splitting would not have paid. Vercel billed
+exactly what the runner recorded ($2.27 in total, judge included). Raw results:
+`results/2026-09-25-holdout50.jsonl`.
+
 ## What we are changing next
 
-1. **A ceiling.** Let SIAC's strongest model be the model you use today, so a comparison with Sonnet 5 uses
-   Sonnet 5 as SIAC's top tier too.
-2. **Split only when it pays.** At advanced level the parts went to the same tier as the whole and wrote more:
-   splitting should be limited to requests whose parts can go to cheaper tiers.
+1. **A ceiling.** Done (`SIAC_CEILING`, `--ceiling`); checked above.
+2. **Split only when it pays.** Done; checked above.
 3. **Catalan.** The weakest set (43%): answers from the cheapest models were thin, and one showed an English
    line. Labels from Jev now appear in the request's language.
 4. **Tier 1 answers** that are correct but bare lose to fuller ones; worth testing a slightly richer basic tier.

@@ -156,8 +156,10 @@ Gemini 3.1 Pro. Full report, method and raw data: [bench/public/RESULTS.md](benc
 | Requests split into parts | 15 | 2.2x as much | 73% |
 | **All** | 142 | **14% less** | **76%** |
 
-SIAC saves the most where most requests are. On hard requests it currently spends more than Sonnet 5; the
-report explains why and what changes next.
+SIAC saves the most where most requests are. On hard requests it spent more than Sonnet 5 in that first run, so
+two changes followed: a ceiling (SIAC's strongest model is the one you already use) and splitting only when it
+pays. Checked on **50 new tasks** SIAC had never seen, against Sonnet 5: **53% cheaper** and **as good or better
+in 82%** of them; on the hard Arena-Hard prompts, half the cost and as good or better in 80%.
 
 ## Reading the live page
 
