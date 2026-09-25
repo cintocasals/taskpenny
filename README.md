@@ -40,6 +40,20 @@ You can also use your own provider keys, with or without Vercel:
 provider's API, without spending tokens. When a provider names a model differently from the catalog, add
 `direct_id: <name>` to that model in `models.yaml`. Costs of direct calls are worked out from the catalog prices.
 
+### Local models (free)
+
+With [Ollama](https://ollama.com) running, `SIAC_LOCAL` lets basic tasks run on your own machine at no cost:
+
+```bash
+ollama pull qwen3:4b
+export SIAC_LOCAL=qwen3:4b          # tier 1 tasks go local; "qwen3:8b@2" also covers tier 2; "auto" = all installed
+siac doctor                         # checks that Ollama answers and the models are installed
+```
+
+Local models go first for their tiers because they cost nothing. Jev still checks every result, and a weak
+answer moves on to a cloud model. Use a model of at least 3 to 4 billion parameters: tiny ones answer fast but
+badly. Local models never make the decisions while a Vercel or provider key is available.
+
 ## Use it from any tool
 
 `siac serve` starts an OpenAI-compatible endpoint. Any tool or library that talks to OpenAI can send its
@@ -126,7 +140,7 @@ request
 | v0.1 | Core loop from the terminal: gate, planner, router, executor, verifier, aggregator, cost receipt (done) |
 | v0.2 | Live task tree in the browser, run replay, export, English, Catalan and Spanish UI (done) |
 | v0.3 | Public benchmark: SIAC against a single strong model |
-| v0.4 | OpenAI-compatible endpoint, direct provider keys, local models with Ollama, Docker |
+| v0.4 | OpenAI-compatible endpoint, direct provider keys, local models with Ollama (done), Docker |
 | v1.0 | Public release |
 
 ## Models

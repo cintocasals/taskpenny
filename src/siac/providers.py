@@ -138,7 +138,8 @@ class DirectClient:
             text = "".join(p.get("text", "") for p in text if isinstance(p, dict))
         u = data.get("usage") or {}
         tin, tout = int(u.get("prompt_tokens") or 0), int(u.get("completion_tokens") or 0)
-        return ChatResult(text=text, model=m.id, usage=Usage(tin, tout, m.cost(tin, tout), "catalog"),
+        return ChatResult(text=text, model=m.id, usage=Usage(tin, tout, m.cost(tin, tout),
+                                                             "local" if m.provider == "ollama" else "catalog"),
                           latency_ms=ms, raw=data)
 
     async def _anthropic(self, m, messages, max_tokens, temperature, json_mode, effort) -> ChatResult:
@@ -285,30 +286,78 @@ class MultiGateway:
         await self._client.aclose()
 
 
+def local_models(spec: str | None = None) -> list[Model]:
+    """Local models from SIAC_LOCAL, served by Ollama (or any OpenAI-compatible local server at OLLAMA_HOST).
+
+    SIAC_LOCAL="qwen3:4b,llama3.2:3b" uses those models for tier 1 tasks; "qwen3:8b@2" also for tier 2;
+    "auto" takes every model Ollama has installed, for tier 1. They cost nothing, so they go first for their
+    tiers, and Jev's checks send a weak answer on to a cloud model.
+    """
+    spec = (spec if spec is not None else os.environ.get("SIAC_LOCAL", "")).strip()
+    if not spec:
+        return []
+    names = [s.strip() for s in spec.split(",") if s.strip()]
+    if names == ["auto"]:
+        try:
+            r = httpx.get(ollama_base().removesuffix("/v1") + "/api/tags", timeout=3)
+            names = [m["name"] for m in r.json().get("models", [])]
+        except (httpx.HTTPError, ValueError, KeyError):
+            names = []
+    out = []
+    for n in names:
+        name, _, top = n.partition("@")
+        tiers = tuple(range(1, int(top) + 1)) if top.isdigit() else (1,)
+        out.append(Model(id=f"ollama/{name}", provider="ollama", tiers=tiers, price_in=0.0, price_out=0.0,
+                         context=32000, direct_id=name))
+    return out
+
+
+def ollama_base() -> str:
+    host = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
+    if not host.startswith("http"):
+        host = "http://" + host
+    return host + "/v1"
+
+
+PROVIDERS["ollama"] = Provider("ollama", (), "http://127.0.0.1:11434/v1", "openai", {"off": "none"})
+
+
 def connect(catalog: Catalog) -> tuple[Any, Catalog]:
     """The gateway to use with the keys found in the environment, and the catalog restricted to what it reaches."""
     has_vercel = bool(os.environ.get("AI_GATEWAY_API_KEY"))
     keys = {name: k for name in PROVIDERS if (k := provider_key(name))}
     wanted = {p.strip() for p in os.environ.get("SIAC_DIRECT", "").split(",") if p.strip()}
     force_llm = os.environ.get("SIAC_DECIDER", "").lower() == "llm"
-    if has_vercel and not wanted and not force_llm:
+    local = local_models()
+    if has_vercel and not wanted and not force_llm and not local:
         return Gateway(catalog=catalog), catalog  # the simple, default path
-    if not has_vercel and not keys:
+    if not has_vercel and not keys and not local:
         raise GatewayError(401, "No key found. Set AI_GATEWAY_API_KEY (one key for Jev and every model), or at "
                                 "least one provider key such as ANTHROPIC_API_KEY or OPENAI_API_KEY. "
                                 "Or run with --dry-run to see SIAC work without a key.")
+    cat = catalog
+    if local:
+        profiles = dict(cat.profiles)
+        if "all" in profiles:
+            profiles["all"] = profiles["all"] + ["ollama"]
+        profiles["local"] = ["ollama"]
+        cat = replace(cat, models=cat.models + local, profiles=profiles)
     client = httpx.AsyncClient(timeout=120.0)
     direct_names = (wanted & set(keys)) if has_vercel else set(keys)
-    direct = {n: DirectClient(PROVIDERS[n], keys[n], catalog, client) for n in sorted(direct_names)}
+    direct = {n: DirectClient(PROVIDERS[n], keys[n], cat, client) for n in sorted(direct_names)}
+    if local:
+        direct["ollama"] = DirectClient(PROVIDERS["ollama"], "ollama", cat, client, base_url=ollama_base(),
+                                        timeout=300.0)
     vercel = Gateway(catalog=catalog) if has_vercel else None
-    reach = None if has_vercel else set(direct)
-    cat = catalog.reachable_only(reach) if reach is not None else catalog
+    if not has_vercel:
+        cat = cat.reachable_only(set(direct))
     decider = None
     if force_llm or not has_vercel:
-        model = cat.pick(1)
+        # the stand-in decider: the cheapest paid basic model; a local one only if nothing else is reachable
+        paid = [m for m in cat.candidates(1, cat.providers("all")) if m.provider != "ollama"]
+        model = paid[0] if paid else cat.pick(1)
         decider = LLMDecider(None, model)
-        cat = replace(cat, decider=replace(model, id=model.id, tiers=()), decider_label=f"{model.id} (stand-in "
-                                                                                           "for Jev)")
+        cat = replace(cat, decider=replace(model, tiers=()), decider_label=f"{model.id} (stand-in for Jev)")
     gw = MultiGateway(cat, vercel, direct, decider, client)
     if decider:
         decider.chat = gw.chat
@@ -333,6 +382,19 @@ async def doctor(catalog: Catalog) -> list[str]:
     else:
         out.append("Routes: everything through Vercel")
     out.append("Decider: " + (cat.decider_label or f"{cat.decider.id} (Jev)"))
+    if cat.decider.provider == "ollama":
+        out.append("  Warning: the decider is a local model, so decisions and checks will be weak. "
+                   "Add AI_GATEWAY_API_KEY (Jev) or one provider key.")
+    local = [m for m in cat.models if m.provider == "ollama"]
+    if local:
+        try:
+            tags = httpx.get(ollama_base().removesuffix("/v1") + "/api/tags", timeout=3).json()
+            installed = {m["name"] for m in tags.get("models", [])}
+            for m in local:
+                state = "installed" if m.direct_id in installed else f"not installed: ollama pull {m.direct_id}"
+                out.append(f"Local model {m.direct_id} (tiers {','.join(map(str, m.tiers))}): {state}")
+        except (httpx.HTTPError, ValueError) as e:
+            out.append(f"Local models: Ollama does not answer at {ollama_base()} ({type(e).__name__})")
     out.append("Providers in use: " + ", ".join(cat.providers("all")))
     out.append("Cheapest per tier: " + ", ".join(f"{t}: {cat.pick(t).id}" for t in sorted(cat.tiers)))
     async with httpx.AsyncClient(timeout=20) as c:
@@ -344,7 +406,7 @@ async def doctor(catalog: Catalog) -> list[str]:
                            else f"Vercel credit: HTTP {r.status_code}")
             except httpx.HTTPError as e:
                 out.append(f"Vercel credit: {e}")
-        for name in direct:
+        for name in (n for n in direct if n != "ollama"):
             p, key = PROVIDERS[name], keys[name]
             base = (os.environ.get(f"{name.upper()}_BASE_URL") or p.base_url).rstrip("/")
             headers = ({"x-api-key": key, "anthropic-version": "2023-06-01"} if p.style == "anthropic"

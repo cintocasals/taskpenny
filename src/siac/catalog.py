@@ -149,7 +149,10 @@ class Catalog:
         real_tier = next(t for t in list(range(max(1, tier), 5)) + list(range(min(4, tier) - 1, 0, -1))
                          if first in self.candidates(t, providers, vision=vision, min_context=min_context))
         out = [first]
-        ceiling = first.typical_cost * max_ratio
+        # a free (local) first choice must not stop the fallbacks: measure against the cheapest paid model
+        paid = [m for m in self.candidates(real_tier, providers, vision=vision, min_context=min_context)
+                if m.typical_cost > 0]
+        ceiling = max(first.typical_cost, paid[0].typical_cost if paid else 0.0) * max_ratio
         for m in self.candidates(real_tier, providers, vision=vision, min_context=min_context)[1:]:
             if m.typical_cost <= ceiling and m not in out:
                 out.append(m)

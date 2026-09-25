@@ -492,3 +492,24 @@ def test_connect_picks_routes_from_keys(catalog, monkeypatch):
     gw, cat = connect(catalog)
     assert gw.route("anthropic/claude-sonnet-5") == "anthropic" and gw.route("openai/gpt-6-luna") == "vercel"
     assert gw.decider is None  # Jev still decides
+
+
+def test_local_models_go_first_and_keep_cloud_fallbacks(catalog, monkeypatch):
+    from siac.providers import connect, local_models
+    ms = local_models("qwen3:4b, qwen3:8b@2")
+    assert [(m.id, m.tiers, m.direct_id) for m in ms] == [("ollama/qwen3:4b", (1,), "qwen3:4b"),
+                                                          ("ollama/qwen3:8b", (1, 2), "qwen3:8b")]
+    for v in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY", "DEEPSEEK_API_KEY",
+              "DASHSCOPE_API_KEY", "SIAC_DIRECT", "SIAC_DECIDER"):
+        monkeypatch.delenv(v, raising=False)
+    monkeypatch.setenv("AI_GATEWAY_API_KEY", "v")
+    monkeypatch.setenv("SIAC_LOCAL", "qwen3:4b")
+    gw, cat = connect(catalog)
+    chain = [m.id for m in cat.chain(1)]
+    assert chain[0] == "ollama/qwen3:4b" and "openai/gpt-6-luna" in chain  # free first, cloud still behind it
+    assert gw.route("ollama/qwen3:4b") == "ollama" and gw.route("openai/gpt-6-luna") == "vercel"
+    assert gw.decider is None  # Jev keeps deciding
+    monkeypatch.delenv("AI_GATEWAY_API_KEY")
+    monkeypatch.setenv("OPENAI_API_KEY", "o")
+    gw, cat = connect(catalog)
+    assert cat.decider.id == "openai/gpt-6-luna"  # a paid basic model decides, not the local one
