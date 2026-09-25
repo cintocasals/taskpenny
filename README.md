@@ -1,9 +1,11 @@
 # SIAC
 
+[![tests](https://github.com/cintocasals/siac/actions/workflows/ci.yml/badge.svg)](https://github.com/cintocasals/siac/actions/workflows/ci.yml)
+
 **Split a big prompt into small tasks and send each one to the cheapest model that can do it well.**
 
-> Status: work in progress, private. v0.3 has a first public benchmark; the OpenAI-compatible API, direct keys,
-> local models and Docker are in place for v0.4.
+> Status: work in progress, private. v0.4 works from n8n and any tool that speaks the OpenAI API, with direct
+> keys, local models, Docker and a public benchmark.
 
 ![SIAC splitting a launch plan into five tasks, each done by the cheapest model that can do it well](docs/siac-demo.gif)
 
