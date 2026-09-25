@@ -33,6 +33,10 @@ select,input[type=number]{background:var(--panel);border:1px solid var(--line);b
 textarea{width:100%;min-height:110px;resize:vertical;background:var(--panel);border:1px solid var(--line);border-radius:2px;padding:12px;line-height:1.5}
 textarea:focus,select:focus,input:focus{outline:2px solid var(--ink);outline-offset:1px}
 button{cursor:pointer;border-radius:2px}
+.login{border:1px solid var(--line);background:var(--paper);padding:16px}
+.login form{display:grid;gap:8px;max-width:520px}.login-hint{margin:0;color:var(--lead);font-size:13px}
+.login-row{display:flex;gap:8px;flex-wrap:wrap}.login-row input{flex:1;min-width:0;padding:8px;border:1px solid var(--line);background:var(--paper);color:var(--ink);font:inherit}
+.login-error{margin:0;color:var(--oxide);font-size:13px}
 .btn{background:var(--ink);color:var(--on-ink);border:1px solid var(--ink);padding:8px 18px;font-weight:600}
 .btn:disabled{opacity:.5;cursor:default}
 .ghost{background:transparent;border:1px solid var(--line);padding:4px 10px;font-size:13px}
@@ -112,6 +116,16 @@ footer{font-family:var(--mono);font-size:11px;color:var(--lead);border-top:1px s
     <select id="lang"><option value="en">English</option><option value="ca">Català</option><option value="es">Español</option></select>
   </header>
 
+  <section class="login" id="login" hidden>
+    <form id="login-form">
+      <label class="label" for="login-key" data-i18n="loginTitle"></label>
+      <p class="login-hint" data-i18n="loginHint"></p>
+      <div class="login-row"><input id="login-key" type="password" autocomplete="current-password" required>
+        <button class="btn" type="submit" data-i18n="loginButton"></button></div>
+      <p class="login-error" id="login-error" hidden data-i18n="loginWrong"></p>
+    </form>
+  </section>
+
   <section class="compose" aria-label="request">
     <label class="label" for="req" data-i18n="request"></label>
     <textarea id="req"></textarea>
@@ -183,6 +197,7 @@ const I18N = {
     language:"Language", request:"Your request", rootTitle:"Your request", examples:"Try", profile:"Providers", budget:"Budget", dry:"Dry run (no key, no cost)",
     nosplit:"Do not split", run:"Run", running:"Running…", spent:"Spent", calls:"Calls", time:"Time", baseline:"One strong model", saving:"Saving",
     costlier:"Extra cost", tree:"Task tree", detail:"Selected task", answer:"Final answer", copy:"Copy", copied:"Copied", log:"Every step",
+    loginTitle:"Key for this SIAC", loginHint:"This SIAC is protected. Enter its key once; this browser will remember it for 30 days.", loginButton:"Enter", loginWrong:"That key is not right.",
     history:"Saved runs", speed:"Replay speed", watch:"Watch", working:"working", fromApi:"from the API", replay:"Replay", open:"Open", export:"Export", treeEmpty:"Run a request to see how SIAC splits it and who does each part.",
     detailEmpty:"Click a task in the tree to see its prompt, the decisions about it and its result.", answerEmpty:"The answer appears here when the run ends.",
     noRuns:"No saved runs yet.", live:"LIVE", dryMode:"DRY RUN", prompt:"Prompt", result:"Result", notes:"Hand-off notes", problem:"Problem reported",
@@ -209,6 +224,7 @@ const I18N = {
     language:"Idioma", request:"La teva petició", rootTitle:"La teva petició", examples:"Prova", profile:"Proveïdors", budget:"Pressupost", dry:"Simulació (sense clau ni cost)",
     nosplit:"No dividir", run:"Executa", running:"Treballant…", spent:"Gastat", calls:"Crides", time:"Temps", baseline:"Un sol model potent", saving:"Estalvi",
     costlier:"Cost de més", tree:"Arbre de tasques", detail:"Tasca seleccionada", answer:"Resposta final", copy:"Copia", copied:"Copiat", log:"Tots els passos",
+    loginTitle:"Clau d'aquest SIAC", loginHint:"Aquest SIAC està protegit. Escriu-ne la clau una vegada; aquest navegador la recordarà 30 dies.", loginButton:"Entra", loginWrong:"La clau no és correcta.",
     history:"Execucions desades", speed:"Velocitat de repetició", watch:"Segueix", working:"treballant", fromApi:"des de l'API", replay:"Repeteix", open:"Obre", export:"Exporta", treeEmpty:"Executa una petició per veure com SIAC la divideix i qui fa cada part.",
     detailEmpty:"Clica una tasca de l'arbre per veure'n el prompt, què se n'ha decidit i el resultat.", answerEmpty:"La resposta surt aquí quan acaba l'execució.",
     noRuns:"Encara no hi ha cap execució desada.", live:"EN VIU", dryMode:"SIMULACIÓ", prompt:"Prompt", result:"Resultat", notes:"Notes de traspàs", problem:"Problema detectat",
@@ -235,6 +251,7 @@ const I18N = {
     language:"Idioma", request:"Tu petición", rootTitle:"Tu petición", examples:"Prueba", profile:"Proveedores", budget:"Presupuesto", dry:"Simulación (sin clave ni coste)",
     nosplit:"No dividir", run:"Ejecutar", running:"Trabajando…", spent:"Gastado", calls:"Llamadas", time:"Tiempo", baseline:"Un solo modelo potente", saving:"Ahorro",
     costlier:"Coste de más", tree:"Árbol de tareas", detail:"Tarea seleccionada", answer:"Respuesta final", copy:"Copiar", copied:"Copiado", log:"Todos los pasos",
+    loginTitle:"Clave de este SIAC", loginHint:"Este SIAC está protegido. Escribe su clave una vez; este navegador la recordará 30 días.", loginButton:"Entrar", loginWrong:"La clave no es correcta.",
     history:"Ejecuciones guardadas", speed:"Velocidad de repetición", watch:"Seguir", working:"trabajando", fromApi:"desde la API", replay:"Repetir", open:"Abrir", export:"Exportar", treeEmpty:"Ejecuta una petición para ver cómo SIAC la divide y quién hace cada parte.",
     detailEmpty:"Haz clic en una tarea del árbol para ver su prompt, lo que se ha decidido y el resultado.", answerEmpty:"La respuesta aparece aquí cuando termina la ejecución.",
     noRuns:"Todavía no hay ejecuciones guardadas.", live:"EN VIVO", dryMode:"SIMULACIÓN", prompt:"Prompt", result:"Resultado", notes:"Notas de traspaso", problem:"Problema detectado",
@@ -280,7 +297,7 @@ function applyLang(){
   loadHistory();
 }
 
-function fresh(){ return {nodes:{}, order:[], cost:0, calls:0, t:0, receipt:null, answer:"", status:"", log:[], error:""}; }
+function fresh(){ return {nodes:Object.create(null), order:[], cost:0, calls:0, t:0, receipt:null, answer:"", status:"", log:[], error:""}; }
 
 function node(id){ if (!S.nodes[id]) { S.nodes[id] = {id, title:id, status:"pending", children:[], depth:0}; S.order.push(id); } return S.nodes[id]; }
 
@@ -468,6 +485,7 @@ let liveKey = "";
 async function pollLive(){
   let live = [];
   try { live = await (await fetch("/api/live")).json(); } catch (e) { return; }
+  if (!Array.isArray(live)) return;
   const key = live.map(r => r.id).join(",");
   if (key !== liveKey) { liveKey = key; loadHistory(live); }
 }
@@ -477,7 +495,10 @@ async function loadHistory(live){
   const box = $("history");
   let runs = [];
   try { runs = await (await fetch("/api/runs")).json(); } catch (e) {}
-  if (!live) { try { live = await (await fetch("/api/live")).json(); } catch (e) { live = []; } liveKey = live.map(r => r.id).join(","); }
+  if (!Array.isArray(runs)) runs = [];
+  if (!live) { try { live = await (await fetch("/api/live")).json(); } catch (e) { live = []; } }
+  if (!Array.isArray(live)) live = [];
+  liveKey = live.map(r => r.id).join(",");
   box.replaceChildren();
   live.forEach(r => {
     const row = document.createElement("div"); row.className = "row live";
@@ -518,7 +539,12 @@ async function replay(id, instant){
 }
 
 async function init(){
-  try { info = await (await fetch("/api/info")).json(); } catch (e) { info = {}; }
+  lang = pickLang(); applyLang();
+  let r = null;
+  try { r = await fetch("/api/info"); } catch (e) {}
+  if (r && r.status === 401) { showLogin(); return; }
+  try { info = r ? await r.json() : {}; } catch (e) { info = {}; }
+  $("login").hidden = true;
   (info.profiles || ["all"]).forEach(p => { const o = document.createElement("option"); o.value = o.textContent = p; $("profile").append(o); });
   $("dry").checked = !!info.dry_run_default; $("dry").disabled = !info.has_key;
   lang = pickLang(); applyLang();
@@ -528,6 +554,15 @@ async function init(){
   $("req").addEventListener("keydown", e => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") run(); });
   setInterval(() => { if (!document.hidden) pollLive(); }, 4000);
   $("copy").addEventListener("click", async () => { if (!S || !S.answer) return; try { await navigator.clipboard.writeText(S.answer); $("copy").textContent = L.copied; setTimeout(() => $("copy").textContent = L.copy, 1500); } catch (e) {} });
+}
+function showLogin(){
+  $("login").hidden = false; $("login-key").focus();
+  $("login-form").onsubmit = async ev => {
+    ev.preventDefault(); $("login-error").hidden = true;
+    let ok = false;
+    try { const r = await fetch("/api/login", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({key: $("login-key").value})}); ok = r.ok; } catch (e) {}
+    if (ok) { $("login-key").value = ""; init(); } else { $("login-error").hidden = false; }
+  };
 }
 init();
 })();

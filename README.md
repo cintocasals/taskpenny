@@ -88,8 +88,9 @@ print(reply.model_extra["siac"])   # run id, cost in USD, baseline estimate, sav
 - `stream: true` works, but the answer arrives in one piece at the end: SIAC checks the work before answering.
 - Optional per request: `"siac": {"max_cost": 0.2, "no_split": true}` in the body, or the header `X-SIAC-Max-Cost`.
 - Not yet: tool calling and images. SIAC answers them with a clear error instead of guessing.
-- The server listens only on your machine. If you open it to others, set `--api-key` (or `SIAC_API_KEY`):
-  every request spends your credit.
+- The server listens only on your machine. If you open it to others, set `--api-key` (or `SIAC_API_KEY`): then
+  the API and the page need the key (the page asks for it once). `SIAC_MAX_COST` caps the budget of any request
+  (2 USD by default).
 
 ### With Docker
 

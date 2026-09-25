@@ -564,3 +564,70 @@ def test_ceiling_caps_the_catalog(catalog):
     assert capped.pick(1).id == catalog.pick(1).id  # cheaper tiers are untouched
     with pytest.raises(KeyError):
         catalog.with_ceiling("nobody/nothing")
+
+
+def _serve(app):
+    import threading
+    from http.server import ThreadingHTTPServer
+
+    from siac.server import make_handler
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(app))
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    return httpd, f"http://127.0.0.1:{httpd.server_address[1]}"
+
+
+def test_server_protects_everything_but_the_page(tmp_path, monkeypatch):
+    import httpx
+
+    from siac.catalog import Catalog
+    from siac.server import App
+    monkeypatch.delenv("AI_GATEWAY_API_KEY", raising=False)
+    httpd, base = _serve(App(Catalog.load(), tmp_path, dry_run_default=True, api_key="secret"))
+    try:
+        assert httpx.get(base + "/").status_code == 200
+        for path in ("/api/info", "/api/runs", "/api/live", "/api/runs/x", "/api/export/x", "/api/events/x"):
+            assert httpx.get(base + path).status_code == 401, path
+        assert httpx.post(base + "/api/run", json={"request": "hi"}).status_code == 401
+        assert httpx.post(base + "/api/login", json={"key": "nope"}).status_code == 401
+        with httpx.Client(base_url=base) as c:
+            r = c.post("/api/login", json={"key": "secret"})
+            assert r.status_code == 200 and "HttpOnly" in r.headers["set-cookie"]
+            assert c.get("/api/info").json()["login"] is True
+            # POSTs must be JSON (a plain form or text from another site is refused), budgets must make sense
+            assert c.post("/api/run", content=b'{"request": "hi"}', headers={"Content-Type": "text/plain"}).status_code == 400
+            for bad in ({"request": "hi", "max_cost": "NaN"}, {"request": "hi", "max_cost": -1},
+                        {"request": "hi", "profile": "nobody"}, {"request": ""}):
+                assert c.post("/api/run", json=bad).status_code == 400, bad
+            ok = c.post("/api/run", json={"request": "hi", "max_cost": 999}).json()
+            assert ok["max_cost"] == 2.0  # capped by SIAC_MAX_COST
+            assert c.post("/api/run", content=b"[1, 2]", headers={"Content-Type": "application/json"}).status_code == 400
+        assert httpx.get(base + "/api/info", headers={"Authorization": "Bearer secret"}).status_code == 200
+    finally:
+        httpd.shutdown()
+
+
+def test_a_crashing_run_still_ends_for_its_watchers(tmp_path, monkeypatch):
+    import httpx
+
+    from siac import server
+    from siac.catalog import Catalog
+
+    class Broken:
+        def __init__(self, *a, **k):
+            pass
+
+        async def run(self, request):
+            raise RuntimeError("boom")
+    monkeypatch.setattr(server, "Engine", Broken)
+    monkeypatch.delenv("AI_GATEWAY_API_KEY", raising=False)
+    app = server.App(Catalog.load(), tmp_path, dry_run_default=True)
+    httpd, base = _serve(app)
+    try:
+        run_id = httpx.post(base + "/api/run", json={"request": "hi"}).json()["id"]
+        live = app.wait(run_id, timeout=5)
+        assert live.done and live.result is None
+        assert any("boom" in e.get("message", "") for e in live.events)
+        stream = httpx.get(base + f"/api/events/{run_id}", timeout=5).text
+        assert "event: result" in stream
+    finally:
+        httpd.shutdown()

@@ -28,7 +28,8 @@ Common options: `--profile` (which providers may be used), `--max-cost` (budget 
 | `SIAC_LOCAL` | Local Ollama models for basic tasks: `qwen3:4b`, `qwen3:8b@2` (tiers 1 and 2), or `auto`. |
 | `OLLAMA_HOST` | Where Ollama listens (default `http://127.0.0.1:11434`). |
 | `<PROVIDER>_BASE_URL` | Another address for a provider's API, for example `OPENAI_BASE_URL`. |
-| `SIAC_API_KEY` | Key that clients of `siac serve` must send. Set it whenever others can reach the port. |
+| `SIAC_API_KEY` | Key for `siac serve`: API clients send it as a Bearer token, the page asks for it once. Set it whenever others can reach the port. |
+| `SIAC_MAX_COST` | Highest budget a request to `siac serve` may ask for, in USD (default 2). |
 | `SIAC_RUNS_DIR` | Where runs are saved (default `runs`). |
 | `AI_GATEWAY_BASE_URL` | Another address for Vercel AI Gateway. |
 
