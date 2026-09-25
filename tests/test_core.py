@@ -584,7 +584,7 @@ def test_server_protects_everything_but_the_page(tmp_path, monkeypatch):
     monkeypatch.delenv("AI_GATEWAY_API_KEY", raising=False)
     httpd, base = _serve(App(Catalog.load(), tmp_path, dry_run_default=True, api_key="secret"))
     try:
-        assert httpx.get(base + "/").status_code == 200
+        assert httpx.get(base + "/").status_code == 200 and httpx.get(base + "/health").json() == {"ok": True}
         for path in ("/api/info", "/api/runs", "/api/live", "/api/runs/x", "/api/export/x", "/api/events/x"):
             assert httpx.get(base + path).status_code == 401, path
         assert httpx.post(base + "/api/run", json={"request": "hi"}).status_code == 401

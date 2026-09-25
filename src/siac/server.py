@@ -251,6 +251,8 @@ def make_handler(app: App):
                 self.end_headers()
                 self.wfile.write(page)
                 return
+            if u.path == "/health":  # for container health checks: says nothing about runs or keys
+                return self._json({"ok": True})
             if u.path in ("/v1/models", "/models"):
                 if self._require_auth(api_style=True):
                     self._json(oai.model_list(app.profiles))

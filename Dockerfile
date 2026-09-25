@@ -11,6 +11,6 @@ RUN pip install . && useradd --create-home --uid 1000 siac && mkdir -p /data/run
 USER siac
 VOLUME ["/data"]
 EXPOSE 8765
-HEALTHCHECK --interval=30s --timeout=3s CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/api/info')"
+HEALTHCHECK --interval=30s --timeout=3s CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health')"
 # Inside a container the server must listen on every interface; set SIAC_API_KEY if others can reach the port.
 CMD ["siac", "serve", "--host", "0.0.0.0", "--port", "8765"]
