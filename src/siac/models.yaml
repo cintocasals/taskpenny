@@ -15,8 +15,11 @@ decider:
   price: { input: 0.042, output: 0.0 }
   context: 32000
 
-# Writes the plan when a prompt is split. Planning quality is where it pays to spend.
+# Writes the plan when a prompt is split. Planning quality is where it pays to spend, so critical
+# (tier 4) requests get the strong planner; the rest, where the parts are usually visible in the
+# request itself, get a lighter one.
 planner: anthropic/claude-sonnet-5
+planner_light: google/gemini-3.8-flash
 
 # The "one strong model" every cost receipt compares against.
 baseline: anthropic/claude-opus-5.5

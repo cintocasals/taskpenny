@@ -146,8 +146,9 @@ def _clean_decision(kind: str, dec: dict | None) -> dict | None:
 
 
 class Planner:
-    def __init__(self, gateway: GatewayLike, model: str, max_subtasks: int = 12, fallbacks: list[str] | None = None):
-        self.gw, self.model, self.max_subtasks = gateway, model, max_subtasks
+    def __init__(self, gateway: GatewayLike, model: str, max_subtasks: int = 12, fallbacks: list[str] | None = None,
+                 reasoning: str | None = "low"):
+        self.gw, self.model, self.max_subtasks, self.reasoning = gateway, model, max_subtasks, reasoning
         self.fallbacks = [m for m in (fallbacks or []) if m != model]
 
     async def plan(self, request: str, context: str = "") -> Plan:
@@ -175,7 +176,8 @@ class Planner:
         models = [self.model] + self.fallbacks
         for i, m in enumerate(models):
             try:
-                return await self.gw.chat(m, messages, max_tokens=8000, temperature=0.2, json_mode=True)
+                return await self.gw.chat(m, messages, max_tokens=6000, temperature=0.2, json_mode=True,
+                                          reasoning=self.reasoning)
             except GatewayError as e:
                 if i + 1 == len(models) or e.status not in (0, 402, 403, 404, 408, 429, 500, 502, 503, 504, 529):
                     raise

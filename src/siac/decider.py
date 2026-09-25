@@ -68,7 +68,8 @@ class Gate:
 @dataclass
 class Settings:
     """Thresholds. Starting values from TypeSafe and Vercel guidance; the benchmark calibrates them."""
-    tier_confidence_min: float = 0.6    # below this, go one tier up
+    tier_confidence_min: float = 0.6    # below this, go one tier up...
+    raise_upward_min: float = 0.25      # ...if at least this much probability sits on higher tiers
     decision_confidence_min: float = 0.6  # below this, a choice task goes to a language model instead
     verify_pass: float = 0.6            # probability that a result meets its criteria to accept it
     min_split_chars: int = 160          # shorter requests are never split
@@ -114,7 +115,10 @@ class Decider:
         tier_s, tier_c, tier_p = r.choice("tier")
         tier_raw = int(tier_s) if tier_s and tier_s.isdigit() else 3
         tier, raised = tier_raw, False
-        if tier_c is None or tier_c < self.s.tier_confidence_min:
+        # Go one tier up only when Jev is unsure AND a real share of its doubt points to a higher tier.
+        # Doubt towards lower tiers is not a reason to pay for a stronger model.
+        upward = sum(float(v) for k, v in (tier_p or {}).items() if str(k).isdigit() and int(k) > tier_raw)
+        if (tier_c is None or tier_c < self.s.tier_confidence_min) and (not tier_p or upward >= self.s.raise_upward_min):
             tier, raised = min(4, tier_raw + 1), True
         ttype, _, _ = r.choice("task_type")
         ans, ans_c, _ = r.choice("answer")

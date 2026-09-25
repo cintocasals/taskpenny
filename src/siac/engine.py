@@ -52,6 +52,8 @@ class Limits:
     max_parallel: int = 4
     worker_max_tokens: int = 6000
     subtask_max_tokens: int = 4000
+    # Hidden reasoning is billed as output. Cheap tiers do not need it; strong tiers get a little.
+    reasoning: dict = field(default_factory=lambda: {1: "off", 2: "off", 3: "low", 4: "medium"})
 
 
 @dataclass
@@ -148,9 +150,11 @@ class Engine:
         self.gw, self.catalog, self.profile = gateway, catalog, profile
         self.limits = limits or Limits()
         self.decider = Decider(gateway, catalog, settings)
-        planner_model = catalog.pick_named(catalog.planner, profile, fallback_tier=3).id
-        self.planner = Planner(gateway, planner_model, self.limits.max_subtasks,
-                               fallbacks=[m.id for m in catalog.chain(3, profile)])
+        fallbacks = [m.id for m in catalog.chain(3, profile)]
+        self.planner = Planner(gateway, catalog.pick_named(catalog.planner, profile, fallback_tier=3).id,
+                               self.limits.max_subtasks, fallbacks=fallbacks)
+        self.planner_light = Planner(gateway, catalog.pick_named(catalog.planner_light, profile, fallback_tier=2).id,
+                                     self.limits.max_subtasks, fallbacks=fallbacks)
         self.on_event = on_event
         self.allow_split = allow_split
         self._sem = asyncio.Semaphore(self.limits.max_parallel)
@@ -191,7 +195,7 @@ class Engine:
         return est
 
     async def _chat(self, node: Node, role: str, model: str | list[str], system: str, user: str,
-                    max_tokens: int) -> str:
+                    max_tokens: int, reasoning: str | None = "off") -> str:
         """Call a model; if the provider refuses or keeps failing, try the next model in the list."""
         models = [model] if isinstance(model, str) else list(model)
         last: GatewayError | None = None
@@ -200,7 +204,8 @@ class Engine:
             try:
                 async with self._sem:
                     r = await self.gw.chat(m, [{"role": "system", "content": system},
-                                               {"role": "user", "content": user}], max_tokens=max_tokens)
+                                               {"role": "user", "content": user}], max_tokens=max_tokens,
+                                           reasoning=reasoning)
             except GatewayError as e:
                 self.reserved -= est
                 last = e
@@ -216,6 +221,15 @@ class Engine:
             self._emit("llm_call", node, role=role, model=m, tokens_in=r.usage.tokens_in,
                        tokens_out=r.usage.tokens_out, cost=r.usage.cost, cost_source=r.usage.cost_source,
                        latency_ms=r.latency_ms)
+            if role == "work":
+                self.work_out += r.usage.tokens_out
+                self.work_visible += estimate_tokens(r.text)
+            if not r.text.strip() and i + 1 < len(models):
+                # the whole output budget went into hidden reasoning: try the next model, without reasoning
+                self._emit("model_fallback", node, model=m, next=models[i + 1], status=0,
+                           message="empty answer (output spent on reasoning)")
+                reasoning = "off"
+                continue
             return r.text
         raise last or GatewayError(0, "no model available")
 
@@ -226,6 +240,7 @@ class Engine:
         self.nodes: dict[str, Node] = {}
         self.cost, self.calls, self.tokens_in, self.tokens_out = 0.0, 0, 0, 0
         self.reserved = 0.0
+        self.work_out, self.work_visible = 0, 0
         self.by_role: dict[str, float] = {}
         self.by_model: dict[str, float] = {}
         run_id = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
@@ -299,9 +314,10 @@ class Engine:
     # ------------------------------------------------------------ split path
     async def _split(self, node: Node, gate: Gate, context: str) -> None:
         node.kind = "split"
-        est = self._check_budget(self.planner.model, estimate_tokens(node.prompt) + 900, 2000)
+        planner = self.planner if gate.tier >= 4 else self.planner_light
+        est = self._check_budget(planner.model, estimate_tokens(node.prompt) + 900, 2000)
         try:
-            plan: Plan = await self.planner.plan(node.prompt, context)
+            plan: Plan = await planner.plan(node.prompt, context)
         finally:
             self.reserved -= est
         self._spend(node, "planning", plan.usage, plan.model)
@@ -378,7 +394,8 @@ class Engine:
             node.model, node.tier = model, tier
             self._emit("route", node, model=model, tier=tier, attempt=attempt + 1)
             max_out = self.limits.worker_max_tokens if node.id == "root" else self.limits.subtask_max_tokens
-            text = await self._chat(node, "work", chain, system, user + feedback, max_out)
+            text = await self._chat(node, "work", chain, system, user + feedback, max_out,
+                                    reasoning=self.limits.reasoning.get(tier))
             model = node.model
             result, notes, problem = split_notes(text)
             node.result, node.notes, node.problem = result, notes, problem
@@ -450,7 +467,10 @@ class Engine:
 
     def _receipt(self, request: str, answer: str) -> dict:
         base = self.catalog.get(self.catalog.baseline)
-        tin, tout = estimate_tokens(request) + 40, estimate_tokens(answer)
+        # The strong model would also spend hidden reasoning tokens: scale the answer length by the ratio of
+        # billed output to visible output that SIAC's own workers showed in this run (never below 1).
+        factor = max(1.0, self.work_out / self.work_visible) if self.work_visible else 1.0
+        tin, tout = estimate_tokens(request) + 40, int(estimate_tokens(answer) * factor)
         baseline_cost = base.cost(tin, tout)
         saving = (1 - self.cost / baseline_cost) * 100 if baseline_cost > 0 else None
         return {
@@ -464,7 +484,8 @@ class Engine:
                 "model": base.id,
                 "estimated_cost": round(baseline_cost, 6),
                 "method": "one call to the baseline model with this request and an answer as long as SIAC's, "
-                          "no retries and no reasoning tokens (so the real cost would usually be higher)",
+                          "scaled by the hidden reasoning SIAC's own models used in this run, with no retries",
+                "reasoning_factor": round(factor, 2),
             },
             "saving_pct": round(saving, 1) if saving is not None else None,
         }

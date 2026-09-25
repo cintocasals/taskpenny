@@ -138,6 +138,18 @@ def make_handler(app: App):
             elif u.path.startswith("/api/runs/"):
                 run = app.load_run(u.path.rsplit("/", 1)[-1])
                 self._json(run if run else {"error": "not found"}, HTTPStatus.OK if run else HTTPStatus.NOT_FOUND)
+            elif u.path.startswith("/api/export/"):
+                from .runlog import to_markdown
+                run = app.load_run(u.path.rsplit("/", 1)[-1])
+                if not run:
+                    return self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
+                body = to_markdown(run).encode("utf-8")
+                self.send_response(HTTPStatus.OK)
+                self.send_header("Content-Type", "text/markdown; charset=utf-8")
+                self.send_header("Content-Disposition", f'attachment; filename="siac-{run.get("id", "run")}.md"')
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
             elif u.path.startswith("/api/events/"):
                 self._stream(u.path.rsplit("/", 1)[-1], int((parse_qs(u.query).get("from") or ["0"])[0]))
             else:

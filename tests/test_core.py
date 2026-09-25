@@ -39,7 +39,8 @@ class ScriptedGateway:
         if "tier" in questions:
             g = self.gate
             ans["split"] = {"type": "boolean", "probability": g["split"]}
-            ans["tier"] = {"type": "choice", "choice": g["tier"][0], "probabilities": {g["tier"][0]: 0.9}}
+            ans["tier"] = {"type": "choice", "choice": g["tier"][0],
+                           "probabilities": g.get("tier_probs") or {g["tier"][0]: 0.9}}
             conf["tier"] = g["tier"][1]
             ans["task_type"] = {"type": "choice", "choice": g["task_type"]}
             ans["answer"] = {"type": "choice", "choice": g["answer"]}
@@ -53,7 +54,7 @@ class ScriptedGateway:
             conf["a"] = c
         return EvalResult(ans, conf, Usage(100, 0, 100 * 0.042 / 1e6), 5)
 
-    async def chat(self, model, messages, *, max_tokens=None, temperature=None, json_mode=False):
+    async def chat(self, model, messages, *, max_tokens=None, temperature=None, json_mode=False, reasoning=None):
         self.chats.append(model)
         system = messages[0]["content"]
         if system.startswith("You are the planner"):
@@ -136,9 +137,17 @@ def test_split_notes():
 
 # ------------------------------------------------------------------ decider
 async def test_gate_raises_tier_when_jev_is_unsure(catalog):
-    gw = ScriptedGateway(catalog, gate={"split": 0.2, "tier": ("2", 0.4), "task_type": "code", "answer": "text"})
+    gw = ScriptedGateway(catalog, gate={"split": 0.2, "tier": ("2", 0.4), "task_type": "code", "answer": "text",
+                                        "tier_probs": {"1": 0.05, "2": 0.55, "3": 0.35, "4": 0.05}})
     g = await Decider(gw, catalog).gate("write code")
     assert g.tier_raw == 2 and g.tier == 3 and g.raised
+
+
+async def test_gate_keeps_tier_when_doubt_points_down(catalog):
+    gw = ScriptedGateway(catalog, gate={"split": 0.2, "tier": ("2", 0.4), "task_type": "code", "answer": "text",
+                                        "tier_probs": {"1": 0.4, "2": 0.5, "3": 0.08, "4": 0.02}})
+    g = await Decider(gw, catalog).gate("write code")
+    assert g.tier == 2 and not g.raised
 
 
 async def test_trivial_or_short_requests_never_split(catalog):
@@ -195,7 +204,7 @@ async def test_split_runs_subtasks_and_jev_solves_choices(catalog):
     t1_done = next(e["t"] for e in events if e["type"] == "node_done" and e["node"] == "t1")
     t3_start = next(e["t"] for e in events if e["type"] == "node_started" and e["node"] == "t3")
     assert t3_start >= t1_done
-    assert gw.chats[0] == "anthropic/claude-sonnet-5"  # the planner
+    assert gw.chats[0] == "google/gemini-3.8-flash"  # the light planner: the request is tier 3, not critical
     # the answer is stitched from the untouched results, in the outline's order
     ans = res.answer
     assert ans.startswith("Here it is.") and ans.index("## Final draft") < ans.index("## Types")
@@ -294,3 +303,25 @@ async def test_parallel_calls_cannot_overshoot_the_budget(catalog):
                          plan=plan)
     res = await Engine(gw, catalog, limits=Limits(max_cost=0.08)).run("List: 1) a, 2) b, 3) c. " * 10)
     assert res.receipt["total_cost"] <= 0.08
+
+
+def test_export_markdown(tmp_path, capsys):
+    from siac.cli import main
+    assert main(["demo", "--save-dir", str(tmp_path), "--quiet"]) == 0
+    run = next(tmp_path.glob("*.json"))
+    assert main(["export", str(run)]) == 0
+    md = capsys.readouterr().out
+    assert "## Task tree" in md and "| root |" in md and "## Cost receipt" in md
+
+
+async def test_empty_answer_moves_to_next_model(catalog):
+    class Thinker(ScriptedGateway):
+        async def chat(self, model, messages, **kw):
+            r = await super().chat(model, messages, **kw)
+            if model == "anthropic/claude-opus-5.5":
+                r.text = ""  # all output tokens went into hidden reasoning
+            return r
+
+    gw = Thinker(catalog, gate={"split": 0.1, "tier": ("4", 0.9), "task_type": "analysis", "answer": "text"})
+    res = await Engine(gw, catalog).run("A hard question")
+    assert res.nodes["root"]["model"] == "anthropic/claude-sonnet-5" and res.answer == "done"

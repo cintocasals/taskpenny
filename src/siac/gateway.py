@@ -70,7 +70,8 @@ class ChatResult:
 class GatewayLike(Protocol):
     async def evaluate(self, state: Any, questions: dict[str, dict]) -> EvalResult: ...
     async def chat(self, model: str, messages: list[dict], *, max_tokens: int | None = None,
-                   temperature: float | None = None, json_mode: bool = False) -> ChatResult: ...
+                   temperature: float | None = None, json_mode: bool = False,
+                   reasoning: str | None = None) -> ChatResult: ...
     async def aclose(self) -> None: ...
 
 
@@ -175,8 +176,14 @@ class Gateway:
         return EvalResult(answers=answers, confidence=conf, usage=usage, latency_ms=ms)
 
     async def chat(self, model: str, messages: list[dict], *, max_tokens: int | None = None,
-                   temperature: float | None = None, json_mode: bool = False) -> ChatResult:
+                   temperature: float | None = None, json_mode: bool = False,
+                   reasoning: str | None = None) -> ChatResult:
+        """reasoning: None (the model's default), "off", or an effort level ("low", "medium", "high")."""
         body: dict[str, Any] = {"model": model, "messages": messages}
+        if reasoning == "off":
+            body["reasoning"] = {"enabled": False}
+        elif reasoning:
+            body["reasoning"] = {"effort": reasoning}
         if max_tokens:
             body["max_tokens"] = max_tokens
         if temperature is not None:
@@ -186,8 +193,10 @@ class Gateway:
         try:
             data, ms = await self._post("/v1/chat/completions", body, self.timeout)
         except GatewayError as e:
-            if json_mode and e.status in (400, 422):  # some providers refuse response_format: ask in plain text
+            if e.status in (400, 422) and ("response_format" in body or "reasoning" in body):
+                # some providers refuse response_format or reasoning controls: ask again without them
                 body.pop("response_format", None)
+                body.pop("reasoning", None)
                 data, ms = await self._post("/v1/chat/completions", body, self.timeout)
             else:
                 raise

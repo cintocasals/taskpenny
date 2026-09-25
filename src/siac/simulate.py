@@ -88,7 +88,8 @@ class SimulatedGateway:
 
     # ------------------------------------------------------------ chat models
     async def chat(self, model: str, messages: list[dict], *, max_tokens: int | None = None,
-                   temperature: float | None = None, json_mode: bool = False) -> ChatResult:
+                   temperature: float | None = None, json_mode: bool = False,
+                   reasoning: str | None = None) -> ChatResult:
         ms = await self._sleep()
         system = messages[0]["content"] if messages and messages[0]["role"] == "system" else ""
         user = messages[-1]["content"]

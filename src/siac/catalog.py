@@ -43,6 +43,7 @@ class Catalog:
     tiers: dict[int, dict]
     task_types: dict[str, str]
     models: list[Model]
+    planner_light: str = ""
     profiles: dict[str, list[str]] = field(default_factory=dict)
     source: str = ""
 
@@ -77,8 +78,8 @@ class Catalog:
             for m in data["models"]
         ]
         ids = {m.id for m in models}
-        for role in ("planner", "baseline"):
-            if data[role] not in ids:
+        for role in ("planner", "baseline", "planner_light"):
+            if role in data and data[role] not in ids:
                 raise ValueError(f"{role} model {data[role]!r} is not in the models list")
         return cls(
             decider=decider,
@@ -88,6 +89,7 @@ class Catalog:
             task_types=dict(data["task_types"]),
             models=models,
             profiles={k: list(v) for k, v in (data.get("profiles") or {}).items()},
+            planner_light=data.get("planner_light") or data["planner"],
             source=source,
         )
 

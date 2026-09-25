@@ -191,6 +191,9 @@ def main(argv: list[str] | None = None) -> int:
     u.add_argument("--no-browser", action="store_true")
     u.add_argument("--models", help="path to a models.yaml of your own")
     u.add_argument("--save-dir", default=os.environ.get("SIAC_RUNS_DIR", "runs"))
+    x = sub.add_parser("export", help="turn a saved run into a Markdown report")
+    x.add_argument("run", help="path to a run .json file")
+    x.add_argument("-o", "--output", help="write to this file instead of the screen")
     m = sub.add_parser("models", help="show the model catalog")
     m.add_argument("--models", help="path to a models.yaml of your own")
     m.add_argument("--check", action="store_true", help="compare prices with the live Vercel catalog")
@@ -198,6 +201,14 @@ def main(argv: list[str] | None = None) -> int:
     args = p.parse_args(argv)
     if args.cmd == "models":
         return _models(args)
+    if args.cmd == "export":
+        from .runlog import load, to_markdown
+        md = to_markdown(load(args.run))
+        if args.output:
+            Path(args.output).write_text(md, encoding="utf-8")
+        else:
+            print(md)
+        return 0
     if args.cmd == "ui":
         from .server import serve
         serve(args.host, args.port, runs_dir=args.save_dir, dry_run=args.dry_run, models=args.models,
