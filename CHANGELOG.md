@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.4.0
+
+- Works from n8n and other tools by changing only the base URL: besides Chat Completions, SIAC now accepts the
+  Responses API (`/v1/responses`), the one n8n's OpenAI Chat Model node uses by default. Checked with a real n8n
+  workflow.
+- A ceiling (`SIAC_CEILING`, `--ceiling`): SIAC's strongest model can be the model you would use anyway; dearer
+  models are left out and receipts compare with it.
+- Splitting only when it pays: Jev gates every part first, and if the parts would not go to clearly cheaper models
+  the request is done in one go.
+- Checked on 50 new tasks against Claude Sonnet 5: 53% cheaper and as good or better in 82% (`RESULTS.md`).
+- Security: with `SIAC_API_KEY` every API route needs the key, as a Bearer token or as a session cookie after
+  signing in on the page; only the page itself and `/health` open without it. POST bodies must be JSON,
+  `SIAC_MAX_COST` caps the budget a request may ask for, a run that fails always ends, and failed plans are
+  counted in the receipt.
+- `/health` for container health checks.
+- The live page numbers list items correctly when a list is broken by sub-points (it showed 1. for every item).
+- A blind check of 20 pairs by a person, reported in `RESULTS.md`.
+
 ## v0.3.0
 
 - First published results (`bench/public/RESULTS.md`): against Claude Sonnet 5 on 142 tasks, 93% cheaper on

@@ -56,8 +56,12 @@ Catalan and Spanish requests, where SIAC used Opus or split the work.
 - **Ties dominate.** Most pairs were judged equal; "as good or better" counts wins and ties.
 - **The judge likes longer answers.** On average SIAC wrote 2,644 characters and Sonnet 5 2,206. Many of SIAC's
   losses on basic tasks were short, correct answers against longer ones with extra explanation.
-- **A person checks the judge.** Twenty pairs are being reviewed blind by a person; agreement with the judge
-  will be added here.
+- **A person checked 20 pairs blind.** The project's author voted on 20 pairs from the 60 task core without knowing
+  which answer was SIAC's. He found most pairs hard to tell apart. He rated SIAC as good or better in 18 of 20, where
+  the judge said 14, and the two gave the same verdict on 6. In the four pairs where they disagreed outright, SIAC's
+  answer was the short one: the judge preferred Sonnet's longer answer, the author preferred SIAC's because it did
+  only what was asked. Twenty votes from one person are too few to correct the judge, so the figures here are the
+  judge's.
 - **Sonnet 5 is a strong, mid-priced baseline.** SIAC's catalog goes above it (Claude Opus for critical tasks), so
   on critical tasks SIAC spends more by design. Against Opus as the baseline the picture would change, but Opus
   refused most calls on the day.

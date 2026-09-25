@@ -175,7 +175,8 @@ in 82%** of them; on the hard Arena-Hard prompts, half the cost and as good or b
 - Jev's gate chooses well when to split and what kind of answer is expected (41 of 42 on our development set).
 - The saving comes from everyday requests going to models that cost a small fraction of a frontier model.
 - Splitting only pays when the parts can go to cheaper tiers than the whole; at advanced level it did not.
-- Cheap models give correct but bare answers; a judge (and maybe a person) prefers more explanation.
+- Cheap models give correct but bare answers. The automatic judge prefers more explanation; in a blind check of 20
+  pairs, the author often preferred the short answer that did only what was asked.
 - Every number is measured, including the ones that do not flatter SIAC: see the benchmark report.
 
 ## Roadmap
