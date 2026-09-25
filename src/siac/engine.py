@@ -155,7 +155,8 @@ class Engine:
                                    max_tokens=max_tokens)
         self._spend(node, role, r.usage, model)
         self._emit("llm_call", node, role=role, model=model, tokens_in=r.usage.tokens_in,
-                   tokens_out=r.usage.tokens_out, cost=r.usage.cost, latency_ms=r.latency_ms)
+                   tokens_out=r.usage.tokens_out, cost=r.usage.cost, cost_source=r.usage.cost_source,
+                   latency_ms=r.latency_ms)
         return r.text
 
     # --------------------------------------------------------------- the loop
@@ -334,7 +335,7 @@ class Engine:
             allowed = ", ".join(spec.get("options") or spec.get("scale") or ["yes", "no"])
             user = (f"{spec['question']}\nAllowed answers: {allowed}.\nAnswer each item with its id and one allowed "
                     "answer, one per line, like '3: label'.\n\n" + "\n".join(f"{it['id']}: {it['text']}" for it in items))
-            text = await self._chat(node, "work", model, "Answer with the allowed labels only.", user, 400)
+            text = await self._chat(node, "work", model, "Answer with the allowed labels only.", user, 2000)
             for line in text.splitlines():
                 m = re.match(r"\s*([\w.-]+)\s*[:\-]\s*(.+)", line)
                 if m and m.group(1) in answers:
