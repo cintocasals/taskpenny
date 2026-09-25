@@ -256,15 +256,16 @@ async def test_refused_model_falls_back_to_next_in_tier(catalog):
     events = []
     res = await Engine(gw, catalog, on_event=events.append).run("A high-stakes decision")
     assert res.status == "done"
-    assert gw.chats == ["anthropic/claude-opus-5.5", "anthropic/claude-sonnet-5"]
-    assert res.nodes["root"]["model"] == "anthropic/claude-sonnet-5"
+    assert gw.chats == ["anthropic/claude-opus-5.5", "anthropic/claude-opus-5"]
+    assert res.nodes["root"]["model"] == "anthropic/claude-opus-5"
     assert any(e["type"] == "model_fallback" for e in events)
 
 
 def test_chain_order(catalog):
-    # A fallback never costs much more than the first choice: Opus -> Sonnet (tier below), never GPT-6 Astra.
-    assert [m.id for m in catalog.chain(4)] == ["anthropic/claude-opus-5.5", "anthropic/claude-sonnet-5",
-                                                "deepseek/deepseek-v4.1-flash"]
+    # A fallback never costs much more than the first choice: Opus 5.5 -> Opus 5 (1.25x) -> Sonnet (tier below),
+    # never GPT-6 Astra (2.5x).
+    assert [m.id for m in catalog.chain(4)] == ["anthropic/claude-opus-5.5", "anthropic/claude-opus-5",
+                                                "anthropic/claude-sonnet-5"]
     assert [m.id for m in catalog.chain(3)][:2] == ["anthropic/claude-sonnet-5", "openai/gpt-6-sol"]
 
 
@@ -324,4 +325,20 @@ async def test_empty_answer_moves_to_next_model(catalog):
 
     gw = Thinker(catalog, gate={"split": 0.1, "tier": ("4", 0.9), "task_type": "analysis", "answer": "text"})
     res = await Engine(gw, catalog).run("A hard question")
-    assert res.nodes["root"]["model"] == "anthropic/claude-sonnet-5" and res.answer == "done"
+    assert res.nodes["root"]["model"] == "anthropic/claude-opus-5" and res.answer == "done"
+
+
+def test_benchmark_label_scoring():
+    import importlib.util
+    from pathlib import Path
+    spec = importlib.util.spec_from_file_location("bench_run", Path(__file__).parent.parent / "bench/public/run.py")
+    run = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(run)
+    gold = {"1": "exchange rate", "2": "change pin", "3": "activate my card"}
+    opts = ["activate my card", "change pin", "exchange rate", "apple pay or google pay"]
+    strict = run.score_labels("1: exchange rate\n2: change pin\n3: activate my card", gold, opts)
+    assert strict["correct"] == 3 and strict["strict"]
+    loose = run.score_labels("Labels\n- 1. What is my exchange rate? -> exchange rate\n**2**: Change PIN\n"
+                             "3 - Apple Pay or Google Pay", gold, opts)
+    assert loose["correct"] == 2 and not loose["strict"]
+    assert run.parse_verdict("A is fine but [[B]]") == "B" and run.parse_verdict("no verdict") is None

@@ -93,7 +93,9 @@ class SimulatedGateway:
         ms = await self._sleep()
         system = messages[0]["content"] if messages and messages[0]["role"] == "system" else ""
         user = messages[-1]["content"]
-        if system.startswith("You are the planner"):
+        if system.startswith("Please act as an impartial judge"):
+            out = "Simulated verdict: both answers are placeholders.\n[[" + self.rng.choice("ABC") + "]]"
+        elif system.startswith("You are the planner"):
             out = self._plan(user)
         elif system.startswith("You write the final answer"):
             heads = [line[4:] for line in user.splitlines() if line.startswith("### ")] or ["Answer"]

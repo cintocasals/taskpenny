@@ -102,6 +102,13 @@ models:
     context: 1000000
     vision: true
 
+  - id: anthropic/claude-opus-5
+    provider: anthropic
+    tiers: [4]
+    price: { input: 5.00, output: 25.00 }
+    context: 1000000
+    vision: true
+
   - id: openai/gpt-6-astra
     provider: openai
     tiers: [4]

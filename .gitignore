@@ -12,3 +12,4 @@ build/
 runs/
 bench/results/
 .DS_Store
+bench/public/.cache/
