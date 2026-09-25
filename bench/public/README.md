@@ -18,15 +18,16 @@ real costs and a method anyone can rerun.
 
 The `multi` tasks are built from Dolly prompts, so that part of `tasks.jsonl` is shared under CC BY-SA 3.0;
 the `classify` tasks carry Banking77 messages under CC BY 4.0 (Casanueva et al., 2020). Each task records its
-source rows.
+source rows. The result files in `results/` include the task prompts, under the same licences.
 
 ## The method
 
 For every task:
 
 1. **SIAC** answers it with its normal settings (budget cap $0.30 per task).
-2. **The baseline** answers it in one call: `anthropic/claude-opus-5.5` with its default settings. Its cost is
-   the real one reported by the gateway, not an estimate.
+2. **The baseline** answers it in one call with its default settings (`--baseline`; the catalog's baseline if not
+   given). The first published run used Claude Sonnet 5, because Claude Opus refused most calls that day. Its
+   cost is the real one reported by the gateway, not an estimate.
 3. **Quality**
    - `classify`: accuracy against the true labels, plus whether the answer used the exact format asked for.
    - everything else: a pairwise judge from a third provider (`google/gemini-3.1-pro-preview` by default)
@@ -43,8 +44,17 @@ as or better than the baseline's.
 ```bash
 python bench/public/run.py --dry-run --limit 5          # no key, no cost: checks the pipeline
 python bench/public/run.py --sets classify --total-budget 1
-python bench/public/run.py --total-budget 12            # the whole set
+python bench/public/run.py --baseline anthropic/claude-sonnet-5 --total-budget 5   # the whole set
+python bench/public/run.py --core ...                   # a 60 task core with the same shape
+python bench/public/summarize.py bench/results/public-live-<time>.jsonl            # the tables
 ```
 
 Results go to `bench/results/public-*.jsonl` (one line per task, with both answers and every judge note) and a
-Markdown report next to it. `--resume <file>` continues an interrupted run.
+Markdown report next to it. `--resume <file>` continues an interrupted run; `--reuse-siac` and `--reuse-baseline`
+take one side's answers from an earlier run instead of paying for them again. With a Vercel key the budget guard
+also watches the real balance, and the report says what Vercel billed against what the runner recorded.
+
+`python bench/public/review.py pick <results>` draws the blind sample of 20 pairs for a person to judge, and
+`review.py score` compares that person's votes with the judge.
+
+The published results are in [RESULTS.md](RESULTS.md), with the raw files in `results/`.

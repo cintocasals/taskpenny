@@ -84,6 +84,9 @@ def print_receipt(result, stream=sys.stdout) -> None:
         print(f"  {role:<12} ${v:.5f}", file=stream)
     print(f"  {'TOTAL':<12} ${r['total_cost']:.5f}  ({r['calls']} calls, {r['tokens_in']} tokens in, "
           f"{r['tokens_out']} out)", file=stream)
+    if r.get("timeouts"):
+        print(f"  Note: {r['timeouts']} call(s) got no answer in time and are not in the total; "
+              "the provider may still bill them.", file=stream)
     b = r["baseline"]
     print(f"  Same request with {b['model']} alone: about ${b['estimated_cost']:.5f}", file=stream)
     s = r.get("saving_pct")

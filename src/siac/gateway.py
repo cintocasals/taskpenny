@@ -87,6 +87,11 @@ def confidence_from_probs(probs: dict[str, float]) -> float | None:
     return max(0.0, min(1.0, (k * pmax - 1) / (k - 1)))
 
 
+def chat_timeout(max_tokens: int | None) -> float:
+    """Seconds to wait for a chat answer: a minute and a half, plus time to write the allowed output slowly."""
+    return 90.0 + (max_tokens or 4000) * 0.06
+
+
 def _gateway_cost(data: dict) -> float | None:
     for path in (("providerMetadata", "gateway", "cost"), ("provider_metadata", "gateway", "cost"),
                  ("usage", "cost"), ("usage", "total_cost")):
@@ -123,13 +128,19 @@ class Gateway:
     async def aclose(self) -> None:
         await self._client.aclose()
 
-    async def _post(self, path: str, body: dict, timeout: float) -> tuple[dict, int]:
+    async def _post(self, path: str, body: dict, timeout: float, retry_timeouts: bool = True) -> tuple[dict, int]:
         last: Exception | None = None
         for attempt in range(self.retries + 1):
             t0 = time.perf_counter()
             try:
                 r = await self._client.post(self.base_url + path, json=body, timeout=timeout)
-            except (httpx.TimeoutException, httpx.TransportError) as e:
+            except httpx.TimeoutException as e:
+                if not retry_timeouts:
+                    # the provider may still finish and bill this call: never send it again blindly
+                    raise GatewayError(408, f"no answer after {timeout:.0f} s; the provider may still bill "
+                                            "this call") from e
+                last = e
+            except httpx.TransportError as e:
                 last = e
             else:
                 ms = int((time.perf_counter() - t0) * 1000)
@@ -191,14 +202,16 @@ class Gateway:
             body["temperature"] = temperature
         if json_mode:
             body["response_format"] = {"type": "json_object"}
+        # long answers from strong models can take minutes: wait in proportion to the output allowed
+        timeout = max(self.timeout, chat_timeout(max_tokens))
         try:
-            data, ms = await self._post("/v1/chat/completions", body, self.timeout)
+            data, ms = await self._post("/v1/chat/completions", body, timeout, retry_timeouts=False)
         except GatewayError as e:
             if e.status in (400, 422) and ("response_format" in body or "reasoning" in body):
                 # some providers refuse response_format or reasoning controls: ask again without them
                 body.pop("response_format", None)
                 body.pop("reasoning", None)
-                data, ms = await self._post("/v1/chat/completions", body, self.timeout)
+                data, ms = await self._post("/v1/chat/completions", body, timeout, retry_timeouts=False)
             else:
                 raise
         choice = (data.get("choices") or [{}])[0]

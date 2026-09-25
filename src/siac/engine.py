@@ -211,6 +211,8 @@ class Engine:
             except GatewayError as e:
                 self.reserved -= est
                 last = e
+                if e.status == 408:
+                    self.timeouts += 1
                 if e.status in FALLBACK_STATUS and i + 1 < len(models):
                     self._emit("model_fallback", node, model=m, next=models[i + 1], status=e.status,
                                message=str(e)[:200])
@@ -241,6 +243,7 @@ class Engine:
         self.events: list[dict] = []
         self.nodes: dict[str, Node] = {}
         self.cost, self.calls, self.tokens_in, self.tokens_out = 0.0, 0, 0, 0
+        self.timeouts = 0  # calls that got no answer in time: the provider may still bill them
         self.reserved = 0.0
         self.work_out, self.work_visible = 0, 0
         self.by_role: dict[str, float] = {}
@@ -438,12 +441,16 @@ class Engine:
                 if m and m.group(1) in answers:
                     answers[m.group(1)].update(answer=m.group(2).strip(), confidence=None, by=model)
             self._emit("fallback", node, model=model, items=len(items))
+        # The question and options are in English for Jev; the reader sees each item with its label in the
+        # language of the request (the planner's "labels"), and no English question.
+        labels = spec.get("labels") or {}
         lines = []
         for it in spec["items"]:
             a = answers.get(it["id"], {})
             text = it["text"] if len(it["text"]) <= 80 else it["text"][:77] + "..."
-            lines.append(f"- {it['id']}. {text} -> {a.get('answer', '?')}")
-        node.result = f"{spec['question']}\n" + "\n".join(lines)
+            label = str(a.get("answer", "?"))
+            lines.append(f"- {it['id']}. {text}: **{labels.get(label, label)}**")
+        node.result = "\n".join(lines)
 
     # ------------------------------------------------------------ final check
     async def _final_check(self, root: Node, request: str) -> None:
@@ -480,6 +487,7 @@ class Engine:
         return {
             "total_cost": round(self.cost, 6),
             "calls": self.calls,
+            "timeouts": self.timeouts,
             "tokens_in": self.tokens_in,
             "tokens_out": self.tokens_out,
             "by_role": {k: round(v, 6) for k, v in sorted(self.by_role.items())},

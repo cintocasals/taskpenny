@@ -25,7 +25,7 @@ import httpx
 
 from . import __version__
 from .catalog import Catalog, Model
-from .gateway import (RETRY_STATUS, ChatResult, EvalResult, Gateway, GatewayError, Usage,
+from .gateway import (RETRY_STATUS, ChatResult, EvalResult, Gateway, GatewayError, Usage, chat_timeout,
                       confidence_from_probs)
 
 
@@ -79,7 +79,10 @@ async def _post(client: httpx.AsyncClient, url: str, body: dict, headers: dict, 
         t0 = time.perf_counter()
         try:
             r = await client.post(url, json=body, headers=headers, timeout=timeout)
-        except (httpx.TimeoutException, httpx.TransportError) as e:
+        except httpx.TimeoutException as e:
+            # the provider may still finish and bill this call: never send it again blindly
+            raise GatewayError(408, f"no answer after {timeout:.0f} s; the provider may still bill this call") from e
+        except httpx.TransportError as e:
             last = e
         else:
             ms = int((time.perf_counter() - t0) * 1000)
@@ -164,14 +167,16 @@ class DirectClient:
                           latency_ms=ms, raw=data)
 
     async def _send(self, url, body, headers, optional) -> tuple[dict, int]:
+        out = body.get("max_tokens") or body.get("max_completion_tokens")
+        timeout = max(self.timeout, chat_timeout(out))
         try:
-            return await _post(self.client, url, body, headers, self.timeout)
+            return await _post(self.client, url, body, headers, timeout)
         except GatewayError as e:
             if e.status in (400, 422) and any(k in body for k in optional):
                 # some models refuse a control (effort, JSON mode, temperature): ask again without them
                 for k in optional:
                     body.pop(k, None)
-                return await _post(self.client, url, body, headers, self.timeout)
+                return await _post(self.client, url, body, headers, timeout)
             raise
 
 

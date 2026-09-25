@@ -40,6 +40,7 @@ Rules:
     {"question": "the closed question, in English",
      "options": {"label": "what this option means", ...},      (choice only, 2 to 20 options)
      "scale": ["lowest", "...", "highest"],                      (score only, 2 to 10 steps)
+     "labels": {"label or scale step": "how the reader sees it, in the language of the request", ...},
      "items": [{"id": "1", "text": "the exact text to judge"}, ...]}
   Put each item to classify as its own entry in "items", copied word for word from the request.
 - Calculations, counting and dates are "text" tasks (a decision model cannot do arithmetic).
@@ -130,6 +131,9 @@ def _clean_decision(kind: str, dec: dict | None) -> dict | None:
     if not items:
         return None
     out = {"kind": kind, "question": str(dec["question"]).strip(), "items": items}
+    labels = dec.get("labels")
+    if isinstance(labels, dict):
+        out["labels"] = {str(k): str(v) for k, v in labels.items() if str(v).strip()}
     if kind == "choice":
         opts = dec.get("options")
         if isinstance(opts, list):

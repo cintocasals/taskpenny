@@ -184,7 +184,7 @@ async def test_split_runs_subtasks_and_jev_solves_choices(catalog):
     plan = {"subtasks": [
         {"id": "t1", "title": "Draft", "prompt": "write the draft", "success_criteria": "a draft"},
         {"id": "t2", "title": "Classify", "prompt": "classify", "answer_type": "choice", "depends_on": [],
-         "decision": {"question": "Which type?", "options": {"a": "A", "b": "B"},
+         "decision": {"question": "Which type?", "options": {"a": "A", "b": "B"}, "labels": {"a": "tipus A"},
                       "items": [{"id": "1", "text": "first"}, {"id": "2", "text": "second"}]}},
         {"id": "t3", "title": "Polish", "prompt": "polish the draft", "depends_on": ["t1"]},
     ], "assembly": "join"}
@@ -197,7 +197,8 @@ async def test_split_runs_subtasks_and_jev_solves_choices(catalog):
     assert res.status == "done"
     assert set(res.nodes["root"]["children"]) == {"t1", "t2", "t3"}
     assert res.nodes["t2"]["kind"] == "jev"
-    assert "-> a" in res.nodes["t2"]["result"] and "-> b" in res.nodes["t2"]["result"]  # item 2 via fallback model
+    # item 2 via the fallback model; labels in the request's language when the planner gave them; no English question
+    assert res.nodes["t2"]["result"] == "- 1. first: **tipus A**\n- 2. second: **b**"
     types = [e["type"] for e in events]
     assert "plan" in types and "jev_solve" in types and "fallback" in types and "final_check" in types
     # t3 depends on t1: it starts only after t1 is done
@@ -521,3 +522,20 @@ async def test_math_and_code_never_go_below_tier_2(catalog):
     root = res.nodes["root"]
     assert root["gate"]["tier_raw"] == 1 and root["gate"]["tier"] == 2 and root["gate"]["floored"]
     assert root["model"] == catalog.pick(2).id
+
+
+async def test_timed_out_chat_is_not_sent_again(catalog):
+    import httpx
+
+    from siac.gateway import Gateway, GatewayError
+    calls = []
+
+    def handler(request):
+        calls.append(request.url.path)
+        raise httpx.ReadTimeout("slow", request=request)
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    gw = Gateway("k", catalog=catalog, client=client)
+    with pytest.raises(GatewayError) as e:
+        await gw.chat("openai/gpt-6-luna", [{"role": "user", "content": "x"}], max_tokens=10)
+    assert e.value.status == 408 and calls == ["/v1/chat/completions"]  # once: it may still be billed
+    await gw.aclose()

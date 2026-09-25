@@ -2,7 +2,8 @@
 
 **Split a big prompt into small tasks and send each one to the cheapest model that can do it well.**
 
-> Status: work in progress, private. The core loop (v0.1) and the live page (v0.2) work; they are being measured and tuned before the public benchmark (v0.3).
+> Status: work in progress, private. v0.3 has a first public benchmark; the OpenAI-compatible API, direct keys,
+> local models and Docker are in place for v0.4.
 
 ![SIAC splitting a launch plan into five tasks, each done by the cheapest model that can do it well](docs/siac-demo.gif)
 
@@ -133,7 +134,24 @@ Details, thresholds and fallbacks: [docs/how-it-works.md](docs/how-it-works.md).
 
 - **Money, not tokens.** Splitting usually uses more tokens in total. The saving comes from moving most of them to models that are 4 to 40 times cheaper, and from letting Jev answer the choice tasks outright.
 - **Visible.** Every step, model, decision confidence and cent is on screen.
-- **Verifiable.** A public, reproducible benchmark (coming in v0.3) compares SIAC with a single strong model on cost, quality and time.
+- **Verifiable.** A public, reproducible benchmark compares SIAC with a single strong model on cost, quality and time, and publishes the tasks where SIAC loses too.
+
+## Results so far
+
+First public benchmark, 25 September 2026: 142 tasks, SIAC against Claude Sonnet 5 alone, judged blind by
+Gemini 3.1 Pro. Full report, method and raw data: [bench/public/RESULTS.md](bench/public/RESULTS.md).
+
+| What SIAC did | Tasks | SIAC cost | As good or better |
+|---|---|---|---|
+| Basic and standard tasks, one cheap model | 103 | **93% less** | 76% |
+| Labelling customer messages (true labels) | 10 | **98% less** | same accuracy, 96 of 100 |
+| Advanced tasks, one model | 16 | 12% less | 69% |
+| Critical tasks, sent to Claude Opus | 8 | 2.0x as much | 100% |
+| Requests split into parts | 15 | 2.2x as much | 73% |
+| **All** | 142 | **14% less** | **76%** |
+
+SIAC saves the most where most requests are. On hard requests it currently spends more than Sonnet 5; the
+report explains why and what changes next.
 
 ## Reading the live page
 
@@ -146,13 +164,11 @@ Details, thresholds and fallbacks: [docs/how-it-works.md](docs/how-it-works.md).
 
 ## What we have learned so far
 
-- On 42 development prompts in English, Catalan and Spanish, Jev's gate chose well when to split (41 of 42) and what
-  kind of answer was expected (41 of 42), and SIAC cost 41% less than the estimate for one strong model.
-  Details and limits in [`bench/DEV_RESULTS.md`](bench/DEV_RESULTS.md).
-- Simple requests save the most (about 95% on basic ones): they go straight to a cheap model.
-- Splitting only pays when the parts can go to cheaper models than the whole would need. So SIAC splits only when Jev
-  is clearly sure, never rewrites the parts to assemble them, and never falls back to a more expensive model.
-- Public, reproducible numbers come with the v0.3 benchmark.
+- Jev's gate chooses well when to split and what kind of answer is expected (41 of 42 on our development set).
+- The saving comes from everyday requests going to models that cost a small fraction of a frontier model.
+- Splitting only pays when the parts can go to cheaper tiers than the whole; at advanced level it did not.
+- Cheap models give correct but bare answers; a judge (and maybe a person) prefers more explanation.
+- Every number is measured, including the ones that do not flatter SIAC: see the benchmark report.
 
 ## Roadmap
 
@@ -160,8 +176,8 @@ Details, thresholds and fallbacks: [docs/how-it-works.md](docs/how-it-works.md).
 |---|---|
 | v0.1 | Core loop from the terminal: gate, planner, router, executor, verifier, aggregator, cost receipt (done) |
 | v0.2 | Live task tree in the browser, run replay, export, English, Catalan and Spanish UI (done) |
-| v0.3 | Public benchmark: SIAC against a single strong model |
-| v0.4 | OpenAI-compatible endpoint, direct provider keys, local models with Ollama, Docker (done); continuous integration |
+| v0.3 | Public benchmark: SIAC against a single strong model (first results in) |
+| v0.4 | OpenAI-compatible endpoint, direct provider keys, local models with Ollama, Docker (already in v0.3); continuous integration and a real n8n workflow through SIAC |
 | v1.0 | Public release |
 
 ## Models

@@ -112,11 +112,30 @@ def core_set(tasks: list[dict], seed: int) -> list[dict]:
 
 
 class Budget:
-    def __init__(self, total: float):
+    """Stops starting tasks before the total is reached. With a Vercel key it also watches the real balance,
+    so money the run did not record (a call that timed out but was billed) still counts."""
+
+    def __init__(self, total: float, balance=None):
         self.total, self.spent, self.reserved = total, 0.0, 0.0
+        self.balance, self.start, self.billed, self._checked = balance, None, 0.0, 0.0
+
+    async def refresh(self, force: bool = False) -> None:
+        if not self.balance or (not force and time.monotonic() - self._checked < 30):
+            return
+        self._checked = time.monotonic()
+        now = await self.balance()
+        if now is None:
+            return
+        if self.start is None:
+            self.start = now
+        self.billed = max(0.0, self.start - now)
+
+    def used(self) -> float:
+        return max(self.spent, self.billed)
 
     async def reserve(self, amount: float) -> bool:
-        while self.spent + self.reserved + amount > self.total:
+        await self.refresh()
+        while self.used() + self.reserved + amount > self.total:
             if self.reserved <= 0:
                 return False
             await asyncio.sleep(1)
@@ -126,6 +145,22 @@ class Budget:
     def release(self, amount: float, used: float) -> None:
         self.reserved -= amount
         self.spent += used
+
+
+async def vercel_balance() -> float | None:
+    """The Vercel AI Gateway credit balance in USD, or None without a Vercel key or on any error."""
+    import os
+
+    import httpx
+    key = os.environ.get("AI_GATEWAY_API_KEY")
+    if not key:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=10) as c:
+            r = await c.get("https://ai-gateway.vercel.sh/v1/credits", headers={"Authorization": f"Bearer {key}"})
+            return float(r.json()["balance"])
+    except Exception:  # noqa: BLE001 - the guard must never stop the run by itself
+        return None
 
 
 async def run_siac(task, catalog, gw, args) -> dict:
@@ -172,7 +207,7 @@ async def judge(task, siac: str, base: str, gw, args) -> dict:
         try:
             r = await gw.chat(args.judge, [{"role": "system", "content": system},
                                            {"role": "user", "content": judge_user(task, a, b)}],
-                              max_tokens=1500, temperature=0, reasoning=args.judge_reasoning)
+                              max_tokens=3000, temperature=0, reasoning=args.judge_reasoning)
         except GatewayError as e:
             votes.append(None)
             notes.append(f"error: {str(e)[:120]}")
@@ -340,7 +375,8 @@ async def main():
         tasks = [t for t in tasks if t["id"] not in done]
     else:
         jl = RESULTS / f"public-{'dry' if args.dry_run else 'live'}-{datetime.now():%Y%m%d-%H%M}.jsonl"
-    budget, sem = Budget(args.total_budget), asyncio.Semaphore(args.parallel)
+    budget, sem = Budget(args.total_budget, None if args.dry_run else vercel_balance), asyncio.Semaphore(args.parallel)
+    await budget.refresh(force=True)
 
     async def guarded(t):
         async with sem:
@@ -362,7 +398,11 @@ async def main():
     await asyncio.gather(*(guarded(t) for t in tasks))
     await gw.aclose()
     rows = [json.loads(line) for line in jl.read_text(encoding="utf-8").splitlines() if line] if jl.exists() else []
+    await budget.refresh(force=True)
     md = report(rows, args)
+    if budget.start is not None:
+        md += (f"\nBilled by Vercel during this run: ${budget.billed:.4f}; recorded by the runner: "
+               f"${budget.spent:.4f}.\n")
     jl.with_suffix(".md").write_text(md, encoding="utf-8")
     print(md)
 
