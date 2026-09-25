@@ -28,7 +28,7 @@ from pathlib import Path
 
 from siac.catalog import Catalog
 from siac.engine import Engine, Limits
-from siac.gateway import Gateway, GatewayError
+from siac.gateway import GatewayError
 from siac.simulate import SimulatedGateway
 
 HERE = Path(__file__).parent
@@ -143,11 +143,17 @@ async def run_siac(task, catalog, gw, args) -> dict:
 
 async def run_baseline(task, gw, args) -> dict:
     t0 = time.perf_counter()
-    try:
-        r = await gw.chat(args.baseline, [{"role": "user", "content": task["prompt"]}], max_tokens=args.baseline_tokens)
-    except GatewayError as e:
-        return {"answer": "", "status": "failed", "error": str(e)[:300], "cost": 0.0,
-                "seconds": round(time.perf_counter() - t0, 1), "model": args.baseline}
+    for attempt in range(args.patience + 1):
+        try:
+            r = await gw.chat(args.baseline, [{"role": "user", "content": task["prompt"]}],
+                              max_tokens=args.baseline_tokens)
+            break
+        except GatewayError as e:
+            if e.status == 429 and attempt < args.patience:  # "no access at this time": wait and ask again
+                await asyncio.sleep(30)
+                continue
+            return {"answer": "", "status": "failed", "error": str(e)[:300], "cost": 0.0,
+                    "seconds": round(time.perf_counter() - t0, 1), "model": args.baseline}
     return {"answer": r.text, "status": "done" if r.text.strip() else "empty", "error": "", "cost": r.usage.cost,
             "cost_source": r.usage.cost_source, "tokens_out": r.usage.tokens_out,
             "seconds": round(time.perf_counter() - t0, 1), "model": r.model}
@@ -185,7 +191,11 @@ async def judge(task, siac: str, base: str, gw, args) -> dict:
 
 
 async def one(task, catalog, gw, args) -> dict:
-    siac, base = await asyncio.gather(run_siac(task, catalog, gw, args), run_baseline(task, gw, args))
+    reused = args.reuse.get(task["id"])
+    if reused:  # SIAC's side from an earlier run with the same code: only the baseline and the judge run again
+        siac, base = reused, await run_baseline(task, gw, args)
+    else:
+        siac, base = await asyncio.gather(run_siac(task, catalog, gw, args), run_baseline(task, gw, args))
     row = {"id": task["id"], "set": task["set"], "lang": task["lang"], "category": task.get("category"),
            "siac": siac, "baseline": base}
     if task["judge"] == "gold":
@@ -200,7 +210,7 @@ async def one(task, catalog, gw, args) -> dict:
                           "votes": [], "cost": 0.0, "notes": ["one side gave no answer"]}
     else:
         row["quality"] = {"mode": "pairwise", **await judge(task, siac["answer"], base["answer"], gw, args)}
-    row["cost_total"] = siac["cost"] + base["cost"] + row["quality"].get("cost", 0.0)
+    row["cost_total"] = (0.0 if reused else siac["cost"]) + base["cost"] + row["quality"].get("cost", 0.0)
     return row
 
 
@@ -275,12 +285,22 @@ async def main():
     ap.add_argument("--total-budget", type=float, default=1.0, help="stop starting tasks after this, USD")
     ap.add_argument("--baseline", default=None, help="default: the catalog baseline")
     ap.add_argument("--baseline-tokens", type=int, default=16000)
+    ap.add_argument("--patience", type=int, default=2, help="when the baseline is refused (429), wait 30 s and "
+                                                             "try again this many times")
     ap.add_argument("--judge", default="google/gemini-3.1-pro-preview")
     ap.add_argument("--judge-reasoning", default="low")
     ap.add_argument("--resume", help="a results .jsonl: skip the tasks it already has and append to it")
     ap.add_argument("--seed", type=int, default=2026)
+    ap.add_argument("--reuse-siac", help="a results .jsonl: take SIAC's answers from it instead of running SIAC again")
     args = ap.parse_args()
 
+    args.reuse = {}
+    if args.reuse_siac:
+        for line in Path(args.reuse_siac).read_text(encoding="utf-8").splitlines():
+            if line:
+                r = json.loads(line)
+                if r["siac"]["status"] == "done":
+                    args.reuse[r["id"]] = r["siac"] | {"reused_from": Path(args.reuse_siac).name}
     tasks = [json.loads(line) for line in (HERE / "tasks.jsonl").read_text(encoding="utf-8").splitlines() if line]
     if args.sets:
         keep = set(args.sets.split(","))
@@ -296,7 +316,11 @@ async def main():
         tasks = tasks[: args.limit]
     catalog = Catalog.load()
     args.baseline = args.baseline or catalog.baseline
-    gw = SimulatedGateway(catalog, latency=(0, 0.01)) if args.dry_run else Gateway(catalog=catalog)
+    if args.dry_run:
+        gw = SimulatedGateway(catalog, latency=(0, 0.01))
+    else:
+        from siac.providers import connect
+        gw, catalog = connect(catalog)
     RESULTS.mkdir(exist_ok=True)
     if args.resume:
         jl = Path(args.resume)

@@ -12,7 +12,7 @@ from pathlib import Path
 from . import __version__
 from .catalog import Catalog
 from .engine import Engine, Limits
-from .gateway import Gateway, GatewayError
+from .gateway import GatewayError
 from .runlog import save
 from .simulate import SimulatedGateway
 
@@ -106,7 +106,11 @@ def _read_prompt(args) -> str:
 
 async def _run(args, prompt: str) -> int:
     catalog = Catalog.load(args.models)
-    gw = SimulatedGateway(catalog) if args.dry_run else Gateway(catalog=catalog)
+    if args.dry_run:
+        gw = SimulatedGateway(catalog)
+    else:
+        from .providers import connect
+        gw, catalog = connect(catalog)
     printer = None if args.quiet or args.json else Printer()
     engine = Engine(gw, catalog, profile=args.profile, on_event=printer,
                     limits=Limits(max_cost=args.max_cost, max_depth=args.max_depth),
@@ -202,6 +206,8 @@ def main(argv: list[str] | None = None) -> int:
     x = sub.add_parser("export", help="turn a saved run into a Markdown report")
     x.add_argument("run", help="path to a run .json file")
     x.add_argument("-o", "--output", help="write to this file instead of the screen")
+    dr = sub.add_parser("doctor", help="check your keys and which models SIAC can reach (no tokens spent)")
+    dr.add_argument("--models", help="path to a models.yaml of your own")
     m = sub.add_parser("models", help="show the model catalog")
     m.add_argument("--models", help="path to a models.yaml of your own")
     m.add_argument("--check", action="store_true", help="compare prices with the live Vercel catalog")
@@ -209,6 +215,10 @@ def main(argv: list[str] | None = None) -> int:
     args = p.parse_args(argv)
     if args.cmd == "models":
         return _models(args)
+    if args.cmd == "doctor":
+        from .providers import doctor
+        print("\n".join(asyncio.run(doctor(Catalog.load(args.models)))))
+        return 0
     if args.cmd == "export":
         from .runlog import load, to_markdown
         md = to_markdown(load(args.run))

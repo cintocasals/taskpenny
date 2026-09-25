@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from importlib import resources
 from pathlib import Path
 from typing import Iterable
@@ -22,6 +22,7 @@ class Model:
     price_out: float  # USD per million output tokens
     context: int
     vision: bool = False
+    direct_id: str = ""  # name on the provider's own API, when it differs from the id without the prefix
 
     def cost(self, tokens_in: int, tokens_out: int) -> float:
         return (tokens_in * self.price_in + tokens_out * self.price_out) / 1e6
@@ -46,6 +47,8 @@ class Catalog:
     planner_light: str = ""
     profiles: dict[str, list[str]] = field(default_factory=dict)
     source: str = ""
+    reachable: frozenset[str] | None = None  # providers the current keys reach; None: all of them
+    decider_label: str = ""
 
     # ------------------------------------------------------------------ loading
     @classmethod
@@ -74,6 +77,7 @@ class Catalog:
                 price_out=float(m["price"]["output"]),
                 context=int(m.get("context", 128000)),
                 vision=bool(m.get("vision", False)),
+                direct_id=str(m.get("direct_id") or ""),
             )
             for m in data["models"]
         ]
@@ -102,12 +106,18 @@ class Catalog:
                 return m
         raise KeyError(model_id)
 
+    def reachable_only(self, providers: set[str]) -> "Catalog":
+        """The same catalog, limited to the providers the available keys can reach."""
+        return replace(self, reachable=frozenset(providers))
+
     def providers(self, profile: str = "all") -> list[str]:
         if profile in self.profiles:
-            return self.profiles[profile]
-        if profile == "all":
-            return sorted({m.provider for m in self.models})
-        raise KeyError(f"unknown profile {profile!r}; known: {', '.join(self.profiles)}")
+            found = self.profiles[profile]
+        elif profile == "all":
+            found = sorted({m.provider for m in self.models})
+        else:
+            raise KeyError(f"unknown profile {profile!r}; known: {', '.join(self.profiles)}")
+        return [p for p in found if self.reachable is None or p in self.reachable]
 
     def candidates(self, tier: int, providers: Iterable[str], *, vision: bool = False,
                    min_context: int = 0) -> list[Model]:
@@ -122,7 +132,8 @@ class Catalog:
     def pick(self, tier: int, profile: str = "all", *, vision: bool = False, min_context: int = 0) -> Model:
         """Cheapest model for the tier. If no model covers it, go up one tier at a time."""
         providers = self.providers(profile)
-        for t in range(max(1, tier), 5):
+        order = list(range(max(1, tier), 5)) + list(range(min(4, tier) - 1, 0, -1))  # up first, then down
+        for t in order:
             found = self.candidates(t, providers, vision=vision, min_context=min_context)
             if found:
                 return found[0]
@@ -135,8 +146,8 @@ class Catalog:
         A fallback never costs much more than the first choice."""
         providers = self.providers(profile)
         first = self.pick(tier, profile, vision=vision, min_context=min_context)
-        real_tier = next(t for t in range(max(1, tier), 5) if first in self.candidates(t, providers, vision=vision,
-                                                                                     min_context=min_context))
+        real_tier = next(t for t in list(range(max(1, tier), 5)) + list(range(min(4, tier) - 1, 0, -1))
+                         if first in self.candidates(t, providers, vision=vision, min_context=min_context))
         out = [first]
         ceiling = first.typical_cost * max_ratio
         for m in self.candidates(real_tier, providers, vision=vision, min_context=min_context)[1:]:

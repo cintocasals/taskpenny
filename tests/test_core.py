@@ -392,3 +392,103 @@ def test_openai_endpoint_end_to_end(tmp_path, monkeypatch):
         assert bad.status_code == 400 and "tool" in bad.json()["error"]["message"]
     finally:
         httpd.shutdown()
+
+
+def _mock_client(handler):
+    import httpx
+    return httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+
+async def test_direct_anthropic_and_openai_formats(catalog):
+    import httpx
+
+    from siac.providers import PROVIDERS, DirectClient
+    seen = {}
+
+    def handler(request: httpx.Request):
+        body = json.loads(request.content)
+        seen[request.url.host] = (body, dict(request.headers))
+        if request.url.host == "api.anthropic.com":
+            return httpx.Response(200, json={"content": [{"type": "text", "text": "Hola"}],
+                                             "usage": {"input_tokens": 100, "output_tokens": 10}})
+        return httpx.Response(200, json={"choices": [{"message": {"content": "Hi"}}],
+                                         "usage": {"prompt_tokens": 50, "completion_tokens": 5}})
+    client = _mock_client(handler)
+    a = DirectClient(PROVIDERS["anthropic"], "k-a", catalog, client)
+    r = await a.chat("anthropic/claude-sonnet-5", [{"role": "system", "content": "Be brief."},
+                                                   {"role": "user", "content": "Hi"}], max_tokens=50, reasoning="off")
+    body, headers = seen["api.anthropic.com"]
+    assert r.text == "Hola" and body["model"] == "claude-sonnet-5" and body["system"] == "Be brief."
+    assert body["output_config"] == {"effort": "low"} and headers["x-api-key"] == "k-a"
+    assert r.usage.cost == pytest.approx(catalog.get("anthropic/claude-sonnet-5").cost(100, 10))
+    o = DirectClient(PROVIDERS["openai"], "k-o", catalog, client)
+    r = await o.chat("openai/gpt-6-luna", [{"role": "user", "content": "Hi"}], max_tokens=20, json_mode=True)
+    body, headers = seen["api.openai.com"]
+    assert r.text == "Hi" and body["model"] == "gpt-6-luna" and body["max_completion_tokens"] == 20
+    assert headers["authorization"] == "Bearer k-o" and body["response_format"] == {"type": "json_object"}
+    await client.aclose()
+
+
+async def test_direct_retries_without_refused_controls(catalog):
+    import httpx
+
+    from siac.providers import PROVIDERS, DirectClient
+    bodies = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        bodies.append(body)
+        if "output_config" in body:
+            return httpx.Response(400, json={"error": {"message": "effort not supported"}})
+        return httpx.Response(200, json={"content": [{"type": "text", "text": "ok"}], "usage": {}})
+    client = _mock_client(handler)
+    r = await DirectClient(PROVIDERS["anthropic"], "k", catalog, client).chat(
+        "anthropic/claude-opus-5.5", [{"role": "user", "content": "x"}], reasoning="low")
+    assert r.text == "ok" and len(bodies) == 2 and bodies[0]["model"] == "claude-opus-5-5"
+    await client.aclose()
+
+
+async def test_llm_decider_answers_jev_questions(catalog):
+    from siac.gateway import ChatResult, Usage
+    from siac.providers import LLMDecider
+
+    async def chat(model, messages, **kw):
+        assert kw["json_mode"] and "QUESTIONS" in messages[-1]["content"]
+        return ChatResult(text='{"split": {"probability": 0.8}, "tier": {"probabilities": {"1": 0.1, "2": 0.7, '
+                               '"3": 0.2, "4": 0}}, "level": {"probabilities": {"0": 0, "1": 3, "2": 1}}}',
+                          model=model, usage=Usage(200, 40, 0.0001, "catalog"), latency_ms=5)
+    d = LLMDecider(chat, catalog.pick(1))
+    r = await d.evaluate({"request": "x"}, {
+        "split": {"type": "boolean", "instructions": "Split?"},
+        "tier": {"type": "choice", "instructions": "Tier?", "criteria": {"1": "a", "2": "b", "3": "c", "4": "d"}},
+        "level": {"type": "score", "instructions": "How bad?", "criteria": ["low", "mid", "high"]}})
+    assert r.boolean("split") == 0.8
+    choice, conf, probs = r.choice("tier")
+    assert choice == "2" and 0 < conf < 1 and sum(probs.values()) == pytest.approx(1)
+    assert r.score("level")[0] == 1.0 and r.usage.cost == 0.0001
+
+
+def test_connect_picks_routes_from_keys(catalog, monkeypatch):
+    from siac.gateway import Gateway, GatewayError
+    from siac.providers import MultiGateway, connect
+    for v in ("AI_GATEWAY_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY",
+              "DEEPSEEK_API_KEY", "DASHSCOPE_API_KEY", "SIAC_DIRECT", "SIAC_DECIDER"):
+        monkeypatch.delenv(v, raising=False)
+    with pytest.raises(GatewayError):
+        connect(catalog)
+    monkeypatch.setenv("AI_GATEWAY_API_KEY", "v")
+    gw, cat = connect(catalog)
+    assert isinstance(gw, Gateway) and cat is catalog
+    monkeypatch.delenv("AI_GATEWAY_API_KEY")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "a")
+    gw, cat = connect(catalog)
+    assert isinstance(gw, MultiGateway) and cat.providers("all") == ["anthropic"]
+    assert cat.pick(1).id == "anthropic/claude-haiku-4.5" and cat.decider.id == "anthropic/claude-haiku-4.5"
+    assert gw.route("anthropic/claude-sonnet-5") == "anthropic"
+    with pytest.raises(GatewayError):
+        gw.route("openai/gpt-6-luna")
+    monkeypatch.setenv("AI_GATEWAY_API_KEY", "v")
+    monkeypatch.setenv("SIAC_DIRECT", "anthropic")
+    gw, cat = connect(catalog)
+    assert gw.route("anthropic/claude-sonnet-5") == "anthropic" and gw.route("openai/gpt-6-luna") == "vercel"
+    assert gw.decider is None  # Jev still decides

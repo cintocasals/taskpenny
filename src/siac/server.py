@@ -11,7 +11,6 @@ from __future__ import annotations
 import asyncio
 import hmac
 import json
-import os
 import re
 import threading
 import time
@@ -26,7 +25,8 @@ from urllib.parse import parse_qs, urlparse
 from .catalog import Catalog
 from .engine import Engine, Limits
 from . import openai_api as oai
-from .gateway import Gateway, GatewayError
+from .gateway import GatewayError
+from .providers import connect, has_any_key
 from .runlog import save
 from .simulate import SimulatedGateway
 
@@ -58,8 +58,15 @@ class App:
         self.catalog, self.runs_dir = catalog, runs_dir
         self.dry_run_default = dry_run_default
         self.live: dict[str, LiveRun] = {}
-        self.has_key = bool(os.environ.get("AI_GATEWAY_API_KEY"))
+        self.has_key = has_any_key()
         self.api_key = api_key or None
+        self.decider_label = ""
+        if self.has_key:
+            try:
+                _, cat = connect(catalog)
+                self.decider_label = cat.decider_label or cat.decider.id
+            except GatewayError:
+                pass
         self._lock = threading.Lock()
         self._count = 0
 
@@ -73,9 +80,10 @@ class App:
 
         def work():
             async def go():
-                gw = SimulatedGateway(self.catalog, latency=(0.2, 0.9)) if dry_run else Gateway(catalog=self.catalog)
+                gw, cat = ((SimulatedGateway(self.catalog, latency=(0.2, 0.9)), self.catalog) if dry_run
+                           else connect(self.catalog))
                 try:
-                    eng = Engine(gw, self.catalog, profile=profile, limits=Limits(max_cost=max_cost),
+                    eng = Engine(gw, cat, profile=profile, limits=Limits(max_cost=max_cost),
                                  on_event=live.push, allow_split=allow_split)
                     res = await eng.run(request)
                     res.id = run_id
@@ -153,7 +161,8 @@ def make_handler(app: App):
             elif u.path == "/api/info":
                 self._json({"has_key": app.has_key, "dry_run_default": app.dry_run_default or not app.has_key,
                             "profiles": list(app.catalog.profiles) or ["all"],
-                            "baseline": app.catalog.baseline, "decider": app.catalog.decider.id})
+                            "baseline": app.catalog.baseline, "decider": app.catalog.decider.id,
+                            "decider_label": app.decider_label})
             elif u.path == "/api/runs":
                 self._json(app.saved_runs())
             elif u.path == "/api/live":

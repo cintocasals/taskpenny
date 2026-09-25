@@ -15,7 +15,6 @@ from pathlib import Path
 
 from siac.catalog import Catalog
 from siac.engine import Engine, Limits
-from siac.gateway import Gateway
 from siac.simulate import SimulatedGateway
 
 HERE = Path(__file__).parent
@@ -84,7 +83,11 @@ async def main():
         keep = set(args.only.split(","))
         cases = [c for c in cases if c["id"] in keep]
     catalog = Catalog.load()
-    gw = SimulatedGateway(catalog, latency=(0, 0.01)) if args.dry_run else Gateway(catalog=catalog)
+    if args.dry_run:
+        gw = SimulatedGateway(catalog, latency=(0, 0.01))
+    else:
+        from siac.providers import connect
+        gw, catalog = connect(catalog)
     sem = asyncio.Semaphore(args.parallel)
     out = HERE / "results"
     out.mkdir(exist_ok=True)

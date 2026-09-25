@@ -14,6 +14,7 @@ The decisions (split or not, which tier of model, is this result good enough) ar
 pip install -e .              # from a clone of this repository (a PyPI package comes with v1.0)
 siac demo                     # watch SIAC work on a sample request: no key, no cost
 export AI_GATEWAY_API_KEY=... # one Vercel AI Gateway key: Jev plus Claude, GPT and Gemini models
+siac doctor                   # what your keys reach (other ways to connect: see Keys)
 siac run "Write a short email to move tomorrow's meeting to Thursday"
 siac ui                       # the live task tree in your browser
 siac serve                    # OpenAI-compatible API for your tools (see below)
@@ -21,6 +22,23 @@ siac serve                    # OpenAI-compatible API for your tools (see below)
 
 Every run is saved in `runs/` as JSON. `siac export runs/<id>.json` turns one into a Markdown report,
 and `siac models --check` compares the catalog prices with the live Vercel catalog.
+
+## Keys
+
+The simplest setup is one [Vercel AI Gateway](https://vercel.com/ai-gateway) key: it reaches Jev and every
+model in the catalog, and reports the real cost of each call.
+
+You can also use your own provider keys, with or without Vercel:
+
+| You set | What SIAC does |
+|---|---|
+| `AI_GATEWAY_API_KEY` | Everything through Vercel; Jev decides. |
+| `AI_GATEWAY_API_KEY` and `SIAC_DIRECT=anthropic,openai` plus those providers' keys | Those providers go straight to their own API with your key; the rest through Vercel; Jev decides. |
+| Only provider keys: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `DEEPSEEK_API_KEY`, `DASHSCOPE_API_KEY` | Only those providers are used. Without Vercel there is no Jev, so the cheapest basic model you can reach answers the decision questions in its place: it works, but it is less sharp and a little dearer than Jev. |
+
+`siac doctor` shows what your keys reach, which model decides and whether each model name exists on its
+provider's API, without spending tokens. When a provider names a model differently from the catalog, add
+`direct_id: <name>` to that model in `models.yaml`. Costs of direct calls are worked out from the catalog prices.
 
 ## Use it from any tool
 
