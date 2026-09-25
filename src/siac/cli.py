@@ -180,6 +180,7 @@ def main(argv: list[str] | None = None) -> int:
         sp.add_argument("--max-depth", type=int, default=3)
         sp.add_argument("--no-split", action="store_true", help="route the whole request to one model")
         sp.add_argument("--models", help="path to a models.yaml of your own")
+        sp.add_argument("--ceiling", help="the strongest model SIAC may use, for example the one you use today")
         sp.add_argument("--save-dir", default=os.environ.get("SIAC_RUNS_DIR", "runs"), help="where runs are saved")
         sp.add_argument("--json", action="store_true", help="print the whole run as JSON")
         sp.add_argument("--quiet", action="store_true", help="only the answer and the receipt")
@@ -197,6 +198,7 @@ def main(argv: list[str] | None = None) -> int:
     u.add_argument("--dry-run", action="store_true", help="simulated models by default")
     u.add_argument("--no-browser", action="store_true")
     u.add_argument("--models", help="path to a models.yaml of your own")
+    u.add_argument("--ceiling", help="the strongest model SIAC may use")
     u.add_argument("--save-dir", default=os.environ.get("SIAC_RUNS_DIR", "runs"))
     s = sub.add_parser("serve", help="OpenAI-compatible API (and the live page) for your tools")
     s.add_argument("--port", type=int, default=8765)
@@ -205,6 +207,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--api-key", default=os.environ.get("SIAC_API_KEY"),
                    help="require this key from clients (Authorization: Bearer ...)")
     s.add_argument("--models", help="path to a models.yaml of your own")
+    s.add_argument("--ceiling", help="the strongest model SIAC may use")
     s.add_argument("--save-dir", default=os.environ.get("SIAC_RUNS_DIR", "runs"))
     x = sub.add_parser("export", help="turn a saved run into a Markdown report")
     x.add_argument("run", help="path to a run .json file")
@@ -216,6 +219,8 @@ def main(argv: list[str] | None = None) -> int:
     m.add_argument("--check", action="store_true", help="compare prices with the live Vercel catalog")
 
     args = p.parse_args(argv)
+    if getattr(args, "ceiling", None):
+        os.environ["SIAC_CEILING"] = args.ceiling  # every catalog this process loads is capped
     if args.cmd == "models":
         return _models(args)
     if args.cmd == "doctor":

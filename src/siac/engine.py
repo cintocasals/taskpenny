@@ -244,6 +244,7 @@ class Engine:
         self.nodes: dict[str, Node] = {}
         self.cost, self.calls, self.tokens_in, self.tokens_out = 0.0, 0, 0, 0
         self.timeouts = 0  # calls that got no answer in time: the provider may still bill them
+        self._pre_gates: dict[str, Gate] = {}  # sub-task gates already asked while deciding whether a split pays
         self.reserved = 0.0
         self.work_out, self.work_visible = 0, 0
         self.by_role: dict[str, float] = {}
@@ -289,8 +290,10 @@ class Engine:
             if node.decision:  # a closed question written by the planner: Jev answers it (idea 18)
                 await self._solve_with_jev(node)
             else:
-                gate = await self.decider.gate(node.prompt)
-                self._spend(node, "decisions", gate.usage, self.catalog.decider.id)
+                gate = self._pre_gates.pop(node.id, None)
+                if gate is None:
+                    gate = await self.decider.gate(node.prompt)
+                    self._spend(node, "decisions", gate.usage, self.catalog.decider.id)
                 node.gate = {"split": round(gate.split_probability, 3), "tier": gate.tier, "tier_raw": gate.tier_raw,
                              "tier_confidence": gate.tier_confidence, "raised": gate.raised, "floored": gate.floored,
                              "task_type": gate.task_type, "answer_type": gate.answer_type}
@@ -338,6 +341,23 @@ class Engine:
                    assembly=plan.assembly,
                    subtasks=[{"id": k.id, "title": k.title, "answer_type": k.answer_type,
                               "depends_on": k.depends_on, "jev": bool(k.decision)} for k in kids])
+        # Does splitting pay? Jev gates every part now (it costs almost nothing); if the parts would not go to
+        # clearly cheaper models than the whole, do the whole in one go instead.
+        gated = [k for k in kids if not k.decision]
+        gates = await asyncio.gather(*(self.decider.gate(k.prompt) for k in gated))
+        for k, g in zip(gated, gates):
+            self._spend(node, "decisions", g.usage, self.catalog.decider.id)
+            self._pre_gates[k.id] = g
+        pays, parts, whole = self._split_pays(gate, [g.tier for g in gates], len(kids) - len(gated))
+        if not pays:
+            for k in kids:
+                self.nodes.pop(k.id, None)
+                self._pre_gates.pop(k.id, None)
+            node.children = []
+            self._emit("split_rejected", node, parts_tiers=[g.tier for g in gates], parts_typical=round(parts, 6),
+                       whole_typical=round(whole, 6))
+            await self._execute(node, gate, context)
+            return
         # Run in waves: every sub-task whose dependencies are done starts at once.
         pending = {k.id: k for k in kids}
         done: set[str] = set()
@@ -384,7 +404,15 @@ class Engine:
         text = await self._chat(node, "assembly", chain, AGGREGATOR, user, 1500)
         node.result = stitch(text, kids, level=2 if node.id == "root" else 3)
 
-    # ------------------------------------------------------ atomic path (LLM)    # ------------------------------------------------------ atomic path (LLM)
+    def _split_pays(self, gate: Gate, part_tiers: list[int], jev_parts: int) -> tuple[bool, float, float]:
+        """Compare the typical call of the whole request's tier with the average part (parts Jev answers cost
+        almost nothing). Splitting goes ahead only if the parts are cheaper by the overhead factor."""
+        whole = self.catalog.pick(gate.tier, self.profile).typical_cost
+        costs = [self.catalog.pick(t, self.profile).typical_cost for t in part_tiers] + [0.0] * jev_parts
+        parts = sum(costs) / len(costs) if costs else whole
+        return parts * self.decider.s.split_overhead < whole, parts, whole
+
+    # ------------------------------------------------------ atomic path (LLM)
     async def _execute(self, node: Node, gate: Gate, context: str) -> None:
         node.kind = "llm"
         tier = gate.tier

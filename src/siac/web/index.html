@@ -203,7 +203,7 @@ const I18N = {
     ex1t:"Prepare the launch of our new online course on AI for small businesses: 1) define three buyer personas, 2) write the landing page copy for the main persona, 3) write a 3-email welcome sequence, 4) list 10 LinkedIn post ideas, and 5) for each post idea, decide whether it is educational, promotional or social proof.",
     ex2t:"Here are five customer comments. For each one, say whether it is a bug report, a feature request or praise, and then write a one-paragraph summary for the product team. 1) \"Export to PDF crashes on Safari.\" 2) \"Would love a dark mode!\" 3) \"Best invoicing tool we have used.\" 4) \"The totals are wrong when I add a discount.\" 5) \"Please add Catalan to the languages.\"",
     ex3t:"Write a short, friendly email to a client to move tomorrow's 10:00 meeting to Thursday at the same time.",
-    ev:{run_started:"started", gate:"gate", plan:"plan", route:"route", llm_call:"call", verify:"check", repair:"repair", jev_solve:"Jev solved", fallback:"fallback",
+    ev:{run_started:"started", gate:"gate", plan:"plan", split_rejected:"split would not pay: one go", route:"route", llm_call:"call", verify:"check", repair:"repair", jev_solve:"Jev solved", fallback:"fallback",
         model_fallback:"model refused", aggregate:"assemble", final_check:"final check", node_done:"done", node_failed:"failed", budget_exceeded:"budget", error:"error", run_done:"finished"}},
   ca: {tagline:"Parteix una petició gran en tasques petites i envia cadascuna al model més barat que la pot fer bé. Decideix Jev.",
     language:"Idioma", request:"La teva petició", rootTitle:"La teva petició", examples:"Prova", profile:"Proveïdors", budget:"Pressupost", dry:"Simulació (sense clau ni cost)",
@@ -229,7 +229,7 @@ const I18N = {
     ex1t:"Prepara el llançament del nostre nou curs en línia d'IA per a petites empreses: 1) defineix tres perfils de client, 2) escriu el text de la pàgina de venda per al perfil principal, 3) escriu una seqüència de benvinguda de tres correus, 4) proposa 10 idees de posts per a LinkedIn, i 5) per a cada idea, decideix si és educativa, promocional o de prova social.",
     ex2t:"Tinc aquests cinc comentaris de clients. Per a cadascun, digues si és un error, una petició de funcionalitat o un elogi, i després escriu un paràgraf de resum per a l'equip de producte. 1) «L'exportació a PDF es penja a Safari.» 2) «M'encantaria un mode fosc!» 3) «La millor eina de facturació que hem fet servir.» 4) «Els totals surten malament quan hi poso un descompte.» 5) «Afegiu el català als idiomes, si us plau.»",
     ex3t:"Escriu un correu curt i amable a un client per passar la reunió de demà a les 10 a dijous a la mateixa hora.",
-    ev:{run_started:"inici", gate:"filtre", plan:"pla", route:"encamina", llm_call:"crida", verify:"comprova", repair:"repara", jev_solve:"Jev resol", fallback:"alternativa",
+    ev:{run_started:"inici", gate:"filtre", plan:"pla", split_rejected:"dividir no surt a compte: d'una vegada", route:"encamina", llm_call:"crida", verify:"comprova", repair:"repara", jev_solve:"Jev resol", fallback:"alternativa",
         model_fallback:"model refusat", aggregate:"uneix", final_check:"comprovació final", node_done:"fet", node_failed:"fallat", budget_exceeded:"pressupost", error:"error", run_done:"acabat"}},
   es: {tagline:"Divide una petición grande en tareas pequeñas y envía cada una al modelo más barato que la hace bien. Decide Jev.",
     language:"Idioma", request:"Tu petición", rootTitle:"Tu petición", examples:"Prueba", profile:"Proveedores", budget:"Presupuesto", dry:"Simulación (sin clave ni coste)",
@@ -255,7 +255,7 @@ const I18N = {
     ex1t:"Prepara el lanzamiento de nuestro nuevo curso online de IA para pequeñas empresas: 1) define tres perfiles de cliente, 2) escribe el texto de la página de venta para el perfil principal, 3) escribe una secuencia de bienvenida de tres correos, 4) propone 10 ideas de posts para LinkedIn, y 5) para cada idea, decide si es educativa, promocional o de prueba social.",
     ex2t:"Tengo estos cinco comentarios de clientes. Para cada uno, di si es un error, una petición de funcionalidad o un elogio, y después escribe un párrafo de resumen para el equipo de producto. 1) «La exportación a PDF se cuelga en Safari.» 2) «¡Me encantaría un modo oscuro!» 3) «La mejor herramienta de facturación que hemos usado.» 4) «Los totales salen mal cuando pongo un descuento.» 5) «Añadid el catalán a los idiomas, por favor.»",
     ex3t:"Escribe un correo corto y amable a un cliente para pasar la reunión de mañana a las 10 al jueves a la misma hora.",
-    ev:{run_started:"inicio", gate:"filtro", plan:"plan", route:"enruta", llm_call:"llamada", verify:"comprueba", repair:"repara", jev_solve:"Jev resuelve", fallback:"alternativa",
+    ev:{run_started:"inicio", gate:"filtro", plan:"plan", split_rejected:"dividir no compensa: de una vez", route:"enruta", llm_call:"llamada", verify:"comprueba", repair:"repara", jev_solve:"Jev resuelve", fallback:"alternativa",
         model_fallback:"modelo rechazado", aggregate:"une", final_check:"comprobación final", node_done:"hecho", node_failed:"fallado", budget_exceeded:"presupuesto", error:"error", run_done:"terminado"}}
 };
 const $ = id => document.getElementById(id);
@@ -294,6 +294,8 @@ function apply(ev){
     case "gate": n.gate = ev; n.tier = ev.tier; break;
     case "plan": n.kind = "split"; n.planModel = ev.model; ev.subtasks.forEach(s => { const c = node(s.id); c.title = s.title; c.parent = n.id; c.depth = (n.depth || 0) + 1; c.jev = s.jev;
       if (!n.children.includes(s.id)) n.children.push(s.id); }); break;
+    case "split_rejected": n.children.forEach(id => { delete S.nodes[id]; S.order = S.order.filter(x => x !== id); });
+      n.children = []; n.kind = "llm"; n.planRejected = true; S.calls += (ev.parts_tiers || []).length; break;
     case "route": n.model = ev.model; n.tier = ev.tier; n.kind = "llm"; break;
     case "llm_call": S.cost += ev.cost || 0; S.calls++; break;
     case "jev_solve": n.kind = "jev"; n.model = info.decider || "typesafe-ai/jev"; break;
@@ -393,6 +395,7 @@ function renderLog(){
     let what = "";
     if (ev.type === "gate") what = L.tier + " " + ev.tier + " · " + ((L.types && L.types[ev.task_type]) || ev.task_type) + " · " + L.split + " " + (ev.split * 100).toFixed(0) + "%";
     else if (ev.type === "plan") what = ev.subtasks.length + " · " + short(ev.model);
+    else if (ev.type === "split_rejected") what = L.tier + " " + (ev.parts_tiers || []).join(", ");
     else if (ev.type === "route" || ev.type === "aggregate") what = short(ev.model) + (ev.tier ? " T" + ev.tier : "");
     else if (ev.type === "verify" || ev.type === "final_check") what = (ev.ok ? "ok" : "✗") + " " + ev.probability;
     else if (ev.type === "jev_solve") what = ev.items + (ev.unsure && ev.unsure.length ? " (" + ev.unsure.length + "?)" : "");

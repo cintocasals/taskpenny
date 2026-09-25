@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
+import os
 from importlib import resources
 from pathlib import Path
 from typing import Iterable
@@ -50,17 +51,38 @@ class Catalog:
     reachable: frozenset[str] | None = None  # providers the current keys reach; None: all of them
     min_tier: dict[str, int] = field(default_factory=dict)  # task type -> lowest tier allowed
     decider_label: str = ""
+    ceiling: str = ""  # the strongest model allowed, when capped (with_ceiling)
 
     # ------------------------------------------------------------------ loading
     @classmethod
-    def load(cls, path: str | Path | None = None) -> "Catalog":
+    def load(cls, path: str | Path | None = None, ceiling: str | None = None) -> "Catalog":
+        """The catalog from models.yaml. `ceiling` (or SIAC_CEILING) caps it at a model: see with_ceiling."""
         if path is None:
             text = resources.files("siac").joinpath("models.yaml").read_text(encoding="utf-8")
             source = "built-in models.yaml"
         else:
             text = Path(path).read_text(encoding="utf-8")
             source = str(path)
-        return cls.from_dict(yaml.safe_load(text), source=source)
+        cat = cls.from_dict(yaml.safe_load(text), source=source)
+        ceiling = ceiling if ceiling is not None else os.environ.get("SIAC_CEILING", "")
+        return cat.with_ceiling(ceiling) if ceiling else cat
+
+    def with_ceiling(self, model_id: str) -> "Catalog":
+        """Make `model_id` the strongest model SIAC may use, usually the model you would otherwise use for
+        everything. Dearer models leave the catalog, the ceiling model covers every tier from its own up to 4, and
+        receipts compare with it."""
+        try:
+            top = self.get(model_id)
+        except KeyError:
+            raise KeyError(f"ceiling model {model_id!r} is not in the catalog") from None
+        low = min(top.tiers) if top.tiers else 3
+        top = replace(top, tiers=tuple(sorted(set(top.tiers) | set(range(low, 5)))))
+        keep = [top if m.id == top.id else m for m in self.models if m.typical_cost <= top.typical_cost]
+
+        def capped(role: str) -> str:
+            return role if any(m.id == role for m in keep) else top.id
+        return replace(self, models=keep, planner=capped(self.planner), planner_light=capped(self.planner_light),
+                       baseline=top.id, ceiling=top.id)
 
     @classmethod
     def from_dict(cls, data: dict, source: str = "") -> "Catalog":

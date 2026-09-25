@@ -38,6 +38,11 @@ each one depends on. Critical (tier 4) requests get the strong planner; the rest
 their parts are usually visible in the request itself. When a part is a closed question over a list of items
 (label each message, answer yes or no for each case), the planner marks it so Jev can answer it directly.
 
+Before any part runs, Jev gates every part (it costs almost nothing) and SIAC compares the typical cost of the
+parts' tiers with the whole request's tier. If the parts would not be at least 1.3 times cheaper on average, the
+plan is dropped and the request is done in one go: at advanced level the parts tend to need the same models as
+the whole, and splitting then only adds cost.
+
 Subtasks run in waves: everything whose dependencies are done runs in parallel (four at a time by default),
 and each result passes its hand-off notes to the tasks that need them. Every subtask goes back through the gate,
 so it gets its own tier.

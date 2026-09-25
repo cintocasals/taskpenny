@@ -2,6 +2,7 @@
 """Build the public benchmark task set from pinned public sources. Same sources, same seed, same file.
 
 Usage: python bench/public/build.py            (writes bench/public/tasks.jsonl)
+       python bench/public/build.py --holdout  (writes tasks-holdout.jsonl: 50 new tasks for checking changes)
 
 Sets (English unless noted):
   mtbench   80  MT-Bench first turns, 8 categories (lm-sys/FastChat, Apache 2.0). Math, reasoning and coding
@@ -82,18 +83,19 @@ def mtbench() -> list[dict]:
     return out
 
 
-def hard(n: int = 15) -> list[dict]:
-    rows = jsonl(fetch("arenahard"))
-    pick = random.Random(SEED).sample(rows, n)
-    return [{"id": f"ah{i:02d}", "set": "hard", "lang": "en", "prompt": q["prompt"], "category": q["cluster"],
+def hard(n: int = 15, seed: int = SEED, prefix: str = "ah", exclude: set | None = None) -> list[dict]:
+    rows = [r for r in jsonl(fetch("arenahard")) if r["uid"] not in (exclude or set())]
+    pick = random.Random(seed).sample(rows, n)
+    return [{"id": f"{prefix}{i:02d}", "set": "hard", "lang": "en", "prompt": q["prompt"], "category": q["cluster"],
              "judge": "pairwise", "source": {"dataset": "Arena-Hard-Auto v0.1", "id": q["uid"],
                                               "license": LICENSE["arenahard"]}}
             for i, q in enumerate(pick, 1)]
 
 
-def multi(n: int = 10) -> list[dict]:
+def multi(n: int = 10, seed: int = SEED + 1, prefix: str = "mp", exclude: set | None = None) -> list[dict]:
     rows = [r | {"row": i} for i, r in enumerate(jsonl(fetch("dolly")))]
-    ok = [r for r in rows if 30 <= len(r["instruction"]) <= 250 and len(r["context"]) <= 700]
+    ok = [r for r in rows if 30 <= len(r["instruction"]) <= 250 and len(r["context"]) <= 700
+          and r["row"] not in (exclude or set())]
     pools = {
         "text": [r for r in ok if r["category"] in ("information_extraction", "closed_qa") and r["context"]],
         "ideas": [r for r in ok if r["category"] == "brainstorming" and not r["context"]],
@@ -101,7 +103,7 @@ def multi(n: int = 10) -> list[dict]:
                   and r["instruction"].lower().startswith("write")],
         "sort": [r for r in ok if r["category"] == "classification" and not r["context"]],
     }
-    rng = random.Random(SEED + 1)
+    rng = random.Random(seed)
     picks = {k: rng.sample(v, n) for k, v in pools.items()}
     out = []
     for i in range(n):
@@ -113,7 +115,7 @@ def multi(n: int = 10) -> list[dict]:
             if p["context"]:
                 ask += "\n   Text: \"" + " ".join(p["context"].split()) + "\""
             lines.append(f"{j}) {ask}")
-        out.append({"id": f"mp{i + 1:02d}", "set": "multi", "lang": "en", "prompt": "\n".join(lines),
+        out.append({"id": f"{prefix}{i + 1:02d}", "set": "multi", "lang": "en", "prompt": "\n".join(lines),
                     "category": "multi-part", "judge": "pairwise",
                     "source": {"dataset": "databricks-dolly-15k", "id": [p["row"] for p in parts],
                                "license": LICENSE["dolly"]}})
@@ -172,7 +174,21 @@ def ours() -> list[dict]:
     return out
 
 
+def holdout() -> list[dict]:
+    """New tasks for checking changes made after the first published run: none of them was used before."""
+    used = [json.loads(x) for x in (HERE / "tasks.jsonl").read_text(encoding="utf-8").splitlines() if x]
+    uids = {t["source"]["id"] for t in used if t["set"] == "hard"}
+    rows = {r for t in used if t["set"] == "multi" for r in t["source"]["id"]}
+    return hard(40, seed=SEED + 100, prefix="h2", exclude=uids) + multi(10, seed=SEED + 101, prefix="m2", exclude=rows)
+
+
 def main() -> None:
+    if "--holdout" in sys.argv:
+        tasks = holdout()
+        path = HERE / "tasks-holdout.jsonl"
+        path.write_text("".join(json.dumps(t, ensure_ascii=False) + "\n" for t in tasks), encoding="utf-8")
+        print(f"{path.name}: {len(tasks)} tasks · sha256 {hashlib.sha256(path.read_bytes()).hexdigest()}")
+        return
     tasks = mtbench() + hard() + multi() + classify() + ours()
     ids = [t["id"] for t in tasks]
     assert len(ids) == len(set(ids)), "duplicate ids"

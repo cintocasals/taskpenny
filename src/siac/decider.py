@@ -77,6 +77,7 @@ class Settings:
     split_min: float = 0.7              # Jev's probability needed to split a request with a list of parts
     split_sure: float = 0.9             # ... or to split one without a visible list of parts
     final_pass: float = 0.4             # the final answer only gets a gap-filling pass below this
+    split_overhead: float = 1.3         # splitting must make the typical call this much cheaper to go ahead
 
 
 class Decider:

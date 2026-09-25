@@ -13,7 +13,8 @@
 | `siac models [--check]` | The catalog; `--check` compares prices with the live Vercel catalog. |
 
 Common options: `--profile` (which providers may be used), `--max-cost` (budget per run in USD, default 0.50),
-`--no-split`, `--dry-run`, `--models` (your own catalog file), `--save-dir` (where runs are saved).
+`--ceiling` (the strongest model SIAC may use), `--no-split`, `--dry-run`, `--models` (your own catalog file),
+`--save-dir` (where runs are saved).
 
 ## Environment variables
 
@@ -22,6 +23,7 @@ Common options: `--profile` (which providers may be used), `--max-cost` (budget 
 | `AI_GATEWAY_API_KEY` | Vercel AI Gateway key: Jev and every model in the catalog. |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY` (or `GOOGLE_API_KEY`), `DEEPSEEK_API_KEY`, `DASHSCOPE_API_KEY` | Provider keys. Without Vercel, only these providers are used. |
 | `SIAC_DIRECT` | With Vercel: providers to call directly with their own key, for example `anthropic,openai`. |
+| `SIAC_CEILING` | The strongest model SIAC may use, usually the one you would otherwise use for everything, for example `anthropic/claude-sonnet-5`. Dearer models are left out, that model covers the top tiers, and receipts compare with it. |
 | `SIAC_DECIDER=llm` | Use the stand-in decider (a basic language model) even when Jev is reachable. |
 | `SIAC_LOCAL` | Local Ollama models for basic tasks: `qwen3:4b`, `qwen3:8b@2` (tiers 1 and 2), or `auto`. |
 | `OLLAMA_HOST` | Where Ollama listens (default `http://127.0.0.1:11434`). |

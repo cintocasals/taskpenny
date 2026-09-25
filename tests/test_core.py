@@ -20,9 +20,12 @@ def catalog():
 class ScriptedGateway:
     """Answers Jev questions and chat calls from small scripts, and records every call."""
 
-    def __init__(self, catalog, *, gate=None, verify=None, plan=None, solve=None, text="done"):
+    def __init__(self, catalog, *, gate=None, verify=None, plan=None, solve=None, text="done", part_gate=None):
         self.catalog = catalog
         self.gate = gate or {"split": 0.1, "tier": ("2", 0.9), "task_type": "writing", "answer": "text"}
+        # gates after the first one (the parts of a split); by default basic parts, so splitting pays
+        self.part_gate = part_gate or {"split": 0.1, "tier": ("1", 0.95), "task_type": "writing", "answer": "text"}
+        self.gates_asked = 0
         self.verify = list(verify or [])
         self.plan = plan
         self.solve = solve or {}
@@ -37,7 +40,8 @@ class ScriptedGateway:
         self.evals.append(list(questions))
         ans, conf = {}, {}
         if "tier" in questions:
-            g = self.gate
+            g = self.gate if self.gates_asked == 0 or not self.plan else self.part_gate
+            self.gates_asked += 1
             ans["split"] = {"type": "boolean", "probability": g["split"]}
             ans["tier"] = {"type": "choice", "choice": g["tier"][0],
                            "probabilities": g.get("tier_probs") or {g["tier"][0]: 0.9}}
@@ -539,3 +543,24 @@ async def test_timed_out_chat_is_not_sent_again(catalog):
         await gw.chat("openai/gpt-6-luna", [{"role": "user", "content": "x"}], max_tokens=10)
     assert e.value.status == 408 and calls == ["/v1/chat/completions"]  # once: it may still be billed
     await gw.aclose()
+
+
+async def test_split_that_does_not_pay_is_done_in_one_go(catalog):
+    plan = {"subtasks": [{"id": "t1", "title": "A", "prompt": "do a"}, {"id": "t2", "title": "B", "prompt": "do b"}]}
+    advanced = {"split": 0.95, "tier": ("3", 0.9), "task_type": "writing", "answer": "text"}
+    gw = ScriptedGateway(catalog, gate=advanced, plan=plan, part_gate=advanced)
+    events = []
+    res = await Engine(gw, catalog, on_event=events.append).run("Please do all of this: 1) a thing, 2) another. " * 5)
+    root = res.nodes["root"]
+    assert res.status == "done" and root["kind"] == "llm" and root["children"] == [] and set(res.nodes) == {"root"}
+    assert any(e["type"] == "split_rejected" for e in events)
+    assert root["model"] == catalog.pick(3).id
+
+
+def test_ceiling_caps_the_catalog(catalog):
+    capped = catalog.with_ceiling("anthropic/claude-sonnet-5")
+    assert capped.pick(4).id == "anthropic/claude-sonnet-5" and capped.baseline == "anthropic/claude-sonnet-5"
+    assert all(m.typical_cost <= capped.get("anthropic/claude-sonnet-5").typical_cost for m in capped.models)
+    assert capped.pick(1).id == catalog.pick(1).id  # cheaper tiers are untouched
+    with pytest.raises(KeyError):
+        catalog.with_ceiling("nobody/nothing")

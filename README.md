@@ -42,6 +42,9 @@ You can also use your own provider keys, with or without Vercel:
 | `AI_GATEWAY_API_KEY` and `SIAC_DIRECT=anthropic,openai` plus those providers' keys | Those providers go straight to their own API with your key; the rest through Vercel; Jev decides. |
 | Only provider keys: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `DEEPSEEK_API_KEY`, `DASHSCOPE_API_KEY` | Only those providers are used. Without Vercel there is no Jev, so the cheapest basic model you can reach answers the decision questions in its place: it works, but it is less sharp and a little dearer than Jev. |
 
+`SIAC_CEILING=anthropic/claude-sonnet-5` (or `--ceiling`) makes that model the strongest SIAC may use: set it to
+the model you use today, and SIAC sends to it only what needs it.
+
 `siac doctor` shows what your keys reach, which model decides and whether each model name exists on its
 provider's API, without spending tokens. When a provider names a model differently from the catalog, add
 `direct_id: <name>` to that model in `models.yaml`. Costs of direct calls are worked out from the catalog prices.

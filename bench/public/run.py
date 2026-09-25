@@ -312,6 +312,7 @@ def report(rows: list[dict], args) -> str:
 async def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--tasks", default=str(HERE / "tasks.jsonl"), help="task file (tasks-holdout.jsonl for new tasks)")
     ap.add_argument("--sets", help="comma list: mtbench,hard,multi,classify,ca,es")
     ap.add_argument("--only", help="comma list of task ids")
     ap.add_argument("--limit", type=int)
@@ -327,6 +328,7 @@ async def main():
     ap.add_argument("--patience", type=int, default=2, help="when the baseline is refused (429), wait 30 s and "
                                                              "try again this many times")
     ap.add_argument("--judge", default="google/gemini-3.1-pro-preview")
+    ap.add_argument("--ceiling", help="cap SIAC at this model (and use it as the baseline unless --baseline says)")
     ap.add_argument("--judge-reasoning", default="low")
     ap.add_argument("--resume", help="a results .jsonl: skip the tasks it already has and append to it")
     ap.add_argument("--seed", type=int, default=2026)
@@ -341,7 +343,7 @@ async def main():
                 r = json.loads(line)
                 if r["siac"]["status"] == "done":
                     args.reuse[r["id"]] = r["siac"] | {"reused_from": Path(args.reuse_siac).name}
-    tasks = [json.loads(line) for line in (HERE / "tasks.jsonl").read_text(encoding="utf-8").splitlines() if line]
+    tasks = [json.loads(line) for line in Path(args.tasks).read_text(encoding="utf-8").splitlines() if line]
     if args.sets:
         keep = set(args.sets.split(","))
         tasks = [t for t in tasks if t["set"] in keep]
@@ -354,6 +356,9 @@ async def main():
         tasks = random.Random(args.seed).sample(tasks, min(args.sample, len(tasks)))
     if args.limit:
         tasks = tasks[: args.limit]
+    if args.ceiling:
+        import os
+        os.environ["SIAC_CEILING"] = args.ceiling
     catalog = Catalog.load()
     args.baseline = args.baseline or catalog.baseline
     if args.reuse_baseline:
