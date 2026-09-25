@@ -300,6 +300,8 @@ def make_handler(app: App):
             try:
                 if path in ("/v1/chat/completions", "/chat/completions"):
                     return self._chat()
+                if path in ("/v1/responses", "/responses"):
+                    return self._chat(responses=True)
                 if path == "/api/login":
                     return self._login()
                 if path == "/api/logout":
@@ -308,7 +310,7 @@ def make_handler(app: App):
                     return self._run()
                 return self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
             except BadInput as e:
-                api = path.endswith("/chat/completions")
+                api = path.endswith("/chat/completions") or path.endswith("/responses")
                 return self._json(oai.error(str(e)) if api else {"error": str(e)}, HTTPStatus.BAD_REQUEST)
 
         def _login(self):
@@ -336,7 +338,8 @@ def make_handler(app: App):
                                allow_split=not body.get("no_split"))
             self._json({"id": run_id, "dry_run": dry, "max_cost": max_cost})
 
-        def _chat(self):
+        def _chat(self, responses: bool = False):
+            """Chat Completions, or the Responses API with responses=True: same run, different wrapping."""
             if not self._require_auth(api_style=True):
                 return
             body = self._body()
@@ -345,7 +348,8 @@ def make_handler(app: App):
             model = str(body.get("model") or "siac")
             try:
                 profile = oai.profile_from_model(model, app.profiles)
-                request = oai.request_from_messages(body.get("messages"))
+                request = (oai.request_from_responses(body) if responses
+                           else oai.request_from_messages(body.get("messages")))
             except oai.BadRequest as e:
                 raise BadInput(str(e)) from None
             opts = body.get("siac") if isinstance(body.get("siac"), dict) else {}
@@ -368,11 +372,11 @@ def make_handler(app: App):
                 self.send_header("Cache-Control", "no-store")
                 self.send_header("X-SIAC-Run-Id", run_id)
                 self.end_headers()
-                for chunk in oai.stream_chunks(run, model):
+                for chunk in (oai.response_events(run, model) if responses else oai.stream_chunks(run, model)):
                     self.wfile.write(chunk)
                 self.wfile.flush()
                 return
-            self._json(oai.completion(run, model))
+            self._json(oai.response(run, model) if responses else oai.completion(run, model))
 
         # ------------------------------------------------------------- streaming
         def _stream(self, run_id: str, start: int):

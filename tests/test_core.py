@@ -631,3 +631,25 @@ def test_a_crashing_run_still_ends_for_its_watchers(tmp_path, monkeypatch):
         assert "event: result" in stream
     finally:
         httpd.shutdown()
+
+
+def test_responses_api(tmp_path, monkeypatch):
+    import httpx
+
+    from siac.catalog import Catalog
+    from siac.server import App
+    monkeypatch.delenv("AI_GATEWAY_API_KEY", raising=False)
+    httpd, base = _serve(App(Catalog.load(), tmp_path, dry_run_default=True))
+    try:
+        r = httpx.post(base + "/v1/responses", json={"model": "siac", "instructions": "Be brief.",
+                                                     "input": [{"role": "user", "content": [
+                                                         {"type": "input_text", "text": "Say hello"}]}]},
+                       timeout=30).json()
+        assert r["object"] == "response" and r["status"] == "completed" and r["output_text"]
+        assert r["output"][0]["content"][0]["type"] == "output_text" and r["siac"]["run_id"]
+        s = httpx.post(base + "/v1/responses", json={"model": "siac", "input": "Hi", "stream": True}, timeout=30).text
+        assert "event: response.completed" in s and "response.output_text.delta" in s
+        bad = httpx.post(base + "/v1/responses", json={"model": "siac", "input": 5})
+        assert bad.status_code == 400 and bad.json()["error"]["message"]
+    finally:
+        httpd.shutdown()

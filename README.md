@@ -83,6 +83,8 @@ print(reply.choices[0].message.content)
 print(reply.model_extra["siac"])   # run id, cost in USD, baseline estimate, saving
 ```
 
+- Both OpenAI APIs work: Chat Completions (`/v1/chat/completions`) and Responses (`/v1/responses`), so tools
+  that default to either one (n8n's OpenAI Chat Model uses Responses) need only the new base URL.
 - Every request is one SIAC run: it is saved in `runs/` and you can watch it live on the page while it works.
 - System messages and earlier turns are passed to SIAC as context; the last user message is the request.
 - `stream: true` works, but the answer arrives in one piece at the end: SIAC checks the work before answering.

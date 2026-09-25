@@ -114,3 +114,68 @@ def stream_chunks(run: dict, model: str) -> list[bytes]:
 
 def error(message: str, kind: str = "invalid_request_error", code: str | None = None) -> dict:
     return {"error": {"message": message, "type": kind, "code": code}}
+
+
+# --------------------------------------------------------------- Responses API
+def request_from_responses(body: dict) -> str:
+    """The Responses API (`/v1/responses`): `input` is a string or a list of message items; `instructions`
+    plays the part of a system message. Both become the chat form SIAC already understands."""
+    messages: list[dict] = []
+    if str(body.get("instructions") or "").strip():
+        messages.append({"role": "system", "content": str(body["instructions"])})
+    inp = body.get("input")
+    if isinstance(inp, str):
+        messages.append({"role": "user", "content": inp})
+    elif isinstance(inp, list):
+        for item in inp:
+            if not isinstance(item, dict):
+                continue
+            if item.get("type") not in (None, "message"):
+                raise BadRequest(f"input items of type {item.get('type')!r} are not supported yet")
+            content = item.get("content")
+            if isinstance(content, list):  # parts: input_text / output_text / text
+                content = "\n".join(str(p.get("text", "")) for p in content
+                                    if isinstance(p, dict) and p.get("type") in ("input_text", "output_text", "text"))
+            messages.append({"role": item.get("role") or "user", "content": content or ""})
+    else:
+        raise BadRequest("input must be a string or a list of messages")
+    return request_from_messages(messages)
+
+
+def response(run: dict, model: str) -> dict:
+    r = run.get("receipt") or {}
+    text = run.get("answer", "")
+    rid = f"resp_siac_{run.get('id', '')}"
+    return {
+        "id": rid, "object": "response", "created_at": int(time.time()), "model": model,
+        "status": "completed" if run.get("status") == "done" else "incomplete",
+        "output": [{"type": "message", "id": f"msg_{rid}", "status": "completed", "role": "assistant",
+                    "content": [{"type": "output_text", "text": text, "annotations": []}]}],
+        "output_text": text,
+        "usage": {"input_tokens": r.get("tokens_in", 0), "output_tokens": r.get("tokens_out", 0),
+                  "total_tokens": r.get("tokens_in", 0) + r.get("tokens_out", 0)},
+        "siac": extra(run),
+    }
+
+
+def response_events(run: dict, model: str) -> list[bytes]:
+    """Server-sent events for a streamed Responses API call, with the whole answer in one delta."""
+    full = response(run, model)
+    item = full["output"][0]
+    text = full["output_text"]
+    started = full | {"status": "in_progress", "output": []}
+
+    def ev(kind: str, obj: dict) -> bytes:
+        return f"event: {kind}\ndata: {json.dumps({'type': kind} | obj, ensure_ascii=False)}\n\n".encode("utf-8")
+    return [
+        ev("response.created", {"response": started}),
+        ev("response.output_item.added", {"output_index": 0, "item": item | {"status": "in_progress", "content": []}}),
+        ev("response.content_part.added", {"item_id": item["id"], "output_index": 0, "content_index": 0,
+                                           "part": {"type": "output_text", "text": "", "annotations": []}}),
+        ev("response.output_text.delta", {"item_id": item["id"], "output_index": 0, "content_index": 0, "delta": text}),
+        ev("response.output_text.done", {"item_id": item["id"], "output_index": 0, "content_index": 0, "text": text}),
+        ev("response.content_part.done", {"item_id": item["id"], "output_index": 0, "content_index": 0,
+                                          "part": item["content"][0]}),
+        ev("response.output_item.done", {"output_index": 0, "item": item}),
+        ev("response.completed", {"response": full}),
+    ]
