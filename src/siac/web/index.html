@@ -91,6 +91,7 @@ a.ghost{color:inherit;text-decoration:none;display:inline-block}
 .history{display:grid}
 .history .row{display:grid;grid-template-columns:1fr auto auto auto auto;gap:10px;align-items:center;padding:8px 14px;border-bottom:1px solid var(--soft);font-size:13px}
 .history .req{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.history .row.live{grid-template-columns:1fr auto auto}.history .row.live .cost{color:var(--oxide)}
 .empty{padding:18px 14px;color:var(--lead)}
 .err{color:var(--oxide);font-family:var(--mono);font-size:13px;padding:0 14px 12px}
 footer{font-family:var(--mono);font-size:11px;color:var(--lead);border-top:1px solid var(--line);padding-top:10px}
@@ -181,7 +182,7 @@ const I18N = {
     language:"Language", request:"Your request", rootTitle:"Your request", examples:"Try", profile:"Providers", budget:"Budget", dry:"Dry run (no key, no cost)",
     nosplit:"Do not split", run:"Run", running:"Running…", spent:"Spent", calls:"Calls", time:"Time", baseline:"One strong model", saving:"Saving",
     costlier:"Extra cost", tree:"Task tree", detail:"Selected task", answer:"Final answer", copy:"Copy", copied:"Copied", log:"Every step",
-    history:"Saved runs", speed:"Replay speed", replay:"Replay", open:"Open", export:"Export", treeEmpty:"Run a request to see how SIAC splits it and who does each part.",
+    history:"Saved runs", speed:"Replay speed", watch:"Watch", working:"working", fromApi:"from the API", replay:"Replay", open:"Open", export:"Export", treeEmpty:"Run a request to see how SIAC splits it and who does each part.",
     detailEmpty:"Click a task in the tree to see its prompt, the decisions about it and its result.", answerEmpty:"The answer appears here when the run ends.",
     noRuns:"No saved runs yet.", live:"LIVE", dryMode:"DRY RUN", prompt:"Prompt", result:"Result", notes:"Hand-off notes", problem:"Problem reported",
     gate:"Jev decided", split:"split", tier:"tier", conf:"confidence", raised:"raised one tier (Jev unsure)", type:"task type", answerType:"answer",
@@ -207,7 +208,7 @@ const I18N = {
     language:"Idioma", request:"La teva petició", rootTitle:"La teva petició", examples:"Prova", profile:"Proveïdors", budget:"Pressupost", dry:"Simulació (sense clau ni cost)",
     nosplit:"No dividir", run:"Executa", running:"Treballant…", spent:"Gastat", calls:"Crides", time:"Temps", baseline:"Un sol model potent", saving:"Estalvi",
     costlier:"Cost de més", tree:"Arbre de tasques", detail:"Tasca seleccionada", answer:"Resposta final", copy:"Copia", copied:"Copiat", log:"Tots els passos",
-    history:"Execucions desades", speed:"Velocitat de repetició", replay:"Repeteix", open:"Obre", export:"Exporta", treeEmpty:"Executa una petició per veure com SIAC la divideix i qui fa cada part.",
+    history:"Execucions desades", speed:"Velocitat de repetició", watch:"Segueix", working:"treballant", fromApi:"des de l'API", replay:"Repeteix", open:"Obre", export:"Exporta", treeEmpty:"Executa una petició per veure com SIAC la divideix i qui fa cada part.",
     detailEmpty:"Clica una tasca de l'arbre per veure'n el prompt, què se n'ha decidit i el resultat.", answerEmpty:"La resposta surt aquí quan acaba l'execució.",
     noRuns:"Encara no hi ha cap execució desada.", live:"EN VIU", dryMode:"SIMULACIÓ", prompt:"Prompt", result:"Resultat", notes:"Notes de traspàs", problem:"Problema detectat",
     gate:"Jev ha decidit", split:"dividir", tier:"nivell", conf:"confiança", raised:"un nivell amunt (Jev dubtava)", type:"tipus de tasca", answerType:"resposta",
@@ -233,7 +234,7 @@ const I18N = {
     language:"Idioma", request:"Tu petición", rootTitle:"Tu petición", examples:"Prueba", profile:"Proveedores", budget:"Presupuesto", dry:"Simulación (sin clave ni coste)",
     nosplit:"No dividir", run:"Ejecutar", running:"Trabajando…", spent:"Gastado", calls:"Llamadas", time:"Tiempo", baseline:"Un solo modelo potente", saving:"Ahorro",
     costlier:"Coste de más", tree:"Árbol de tareas", detail:"Tarea seleccionada", answer:"Respuesta final", copy:"Copiar", copied:"Copiado", log:"Todos los pasos",
-    history:"Ejecuciones guardadas", speed:"Velocidad de repetición", replay:"Repetir", open:"Abrir", export:"Exportar", treeEmpty:"Ejecuta una petición para ver cómo SIAC la divide y quién hace cada parte.",
+    history:"Ejecuciones guardadas", speed:"Velocidad de repetición", watch:"Seguir", working:"trabajando", fromApi:"desde la API", replay:"Repetir", open:"Abrir", export:"Exportar", treeEmpty:"Ejecuta una petición para ver cómo SIAC la divide y quién hace cada parte.",
     detailEmpty:"Haz clic en una tarea del árbol para ver su prompt, lo que se ha decidido y el resultado.", answerEmpty:"La respuesta aparece aquí cuando termina la ejecución.",
     noRuns:"Todavía no hay ejecuciones guardadas.", live:"EN VIVO", dryMode:"SIMULACIÓN", prompt:"Prompt", result:"Resultado", notes:"Notas de traspaso", problem:"Problema detectado",
     gate:"Jev ha decidido", split:"dividir", tier:"nivel", conf:"confianza", raised:"un nivel más (Jev dudaba)", type:"tipo de tarea", answerType:"respuesta",
@@ -445,20 +446,43 @@ async function run(){
       body: JSON.stringify({request, dry_run: $("dry").checked, profile: $("profile").value, max_cost: parseFloat($("budget").value) || 0.5, no_split: $("nosplit").checked})});
     const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status);
     S.dry = !!j.dry_run;
-    es = new EventSource("/api/events/" + encodeURIComponent(j.id));
-    es.onmessage = m => { apply(JSON.parse(m.data)); schedule(); };
-    es.addEventListener("result", () => { stopAll(); done(); });
-    es.onerror = () => { if (S.status) { stopAll(); done(); } };
+    follow(j.id);
   } catch (e) { S.error = String(e.message || e); renderAll(); done(); }
+}
+function follow(id){
+  es = new EventSource("/api/events/" + encodeURIComponent(id));
+  es.onmessage = m => { const ev = JSON.parse(m.data); if (ev.type === "llm_call" && ev.cost_source === "simulated") S.dry = true; apply(ev); schedule(); };
+  es.addEventListener("result", () => { stopAll(); done(); });
+  es.onerror = () => { if (S.status) { stopAll(); done(); } };
+}
+async function watch(r){
+  stopAll(); S = fresh(); selected = "root"; $("req").value = r.request; renderAll();
+  $("run").disabled = true; $("run").textContent = L.running;
+  follow(r.id);
+}
+let liveKey = "";
+async function pollLive(){
+  let live = [];
+  try { live = await (await fetch("/api/live")).json(); } catch (e) { return; }
+  const key = live.map(r => r.id).join(",");
+  if (key !== liveKey) { liveKey = key; loadHistory(live); }
 }
 function done(){ $("run").disabled = false; $("run").textContent = L.run; renderAll(); loadHistory(); }
 
-async function loadHistory(){
+async function loadHistory(live){
   const box = $("history");
   let runs = [];
   try { runs = await (await fetch("/api/runs")).json(); } catch (e) {}
+  if (!live) { try { live = await (await fetch("/api/live")).json(); } catch (e) { live = []; } liveKey = live.map(r => r.id).join(","); }
   box.replaceChildren();
-  if (!runs.length) { box.innerHTML = '<p class="empty">' + esc(L.noRuns) + "</p>"; return; }
+  live.forEach(r => {
+    const row = document.createElement("div"); row.className = "row live";
+    row.innerHTML = '<span class="req" title="' + esc(r.request) + '">' + esc(r.request) + '</span><span class="cost">● ' +
+      esc(L.working) + (r.source === "api" ? " · " + esc(L.fromApi) : "") + "</span>";
+    const w = document.createElement("button"); w.className = "ghost"; w.textContent = L.watch; w.addEventListener("click", () => watch(r));
+    row.append(w); box.append(row);
+  });
+  if (!runs.length && !live.length) { box.innerHTML = '<p class="empty">' + esc(L.noRuns) + "</p>"; return; }
   runs.forEach(r => {
     const row = document.createElement("div"); row.className = "row";
     row.innerHTML = '<span class="req" title="' + esc(r.request) + '">' + esc(r.request) + '</span><span class="cost">' + money(r.cost) +
@@ -498,6 +522,7 @@ async function init(){
   $("dry").addEventListener("change", () => { $("mode").textContent = $("dry").checked || !info.has_key ? L.dryMode : L.live; });
   $("run").addEventListener("click", run);
   $("req").addEventListener("keydown", e => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") run(); });
+  setInterval(() => { if (!document.hidden) pollLive(); }, 4000);
   $("copy").addEventListener("click", async () => { if (!S || !S.answer) return; try { await navigator.clipboard.writeText(S.answer); $("copy").textContent = L.copied; setTimeout(() => $("copy").textContent = L.copy, 1500); } catch (e) {} });
 }
 init();

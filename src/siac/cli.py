@@ -191,6 +191,14 @@ def main(argv: list[str] | None = None) -> int:
     u.add_argument("--no-browser", action="store_true")
     u.add_argument("--models", help="path to a models.yaml of your own")
     u.add_argument("--save-dir", default=os.environ.get("SIAC_RUNS_DIR", "runs"))
+    s = sub.add_parser("serve", help="OpenAI-compatible API (and the live page) for your tools")
+    s.add_argument("--port", type=int, default=8765)
+    s.add_argument("--host", default="127.0.0.1")
+    s.add_argument("--dry-run", action="store_true", help="simulated models for every request")
+    s.add_argument("--api-key", default=os.environ.get("SIAC_API_KEY"),
+                   help="require this key from clients (Authorization: Bearer ...)")
+    s.add_argument("--models", help="path to a models.yaml of your own")
+    s.add_argument("--save-dir", default=os.environ.get("SIAC_RUNS_DIR", "runs"))
     x = sub.add_parser("export", help="turn a saved run into a Markdown report")
     x.add_argument("run", help="path to a run .json file")
     x.add_argument("-o", "--output", help="write to this file instead of the screen")
@@ -209,10 +217,10 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(md)
         return 0
-    if args.cmd == "ui":
+    if args.cmd in ("ui", "serve"):
         from .server import serve
         serve(args.host, args.port, runs_dir=args.save_dir, dry_run=args.dry_run, models=args.models,
-              open_browser=not args.no_browser)
+              open_browser=args.cmd == "ui" and not args.no_browser, api_key=getattr(args, "api_key", None))
         return 0
     if args.cmd == "demo":
         args.dry_run, args.file, prompt = True, None, DEMO_PROMPT

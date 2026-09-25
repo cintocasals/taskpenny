@@ -1,12 +1,15 @@
-"""`siac ui`: a local page that shows every run live as a task tree.
+"""`siac ui` and `siac serve`: a local page that shows every run live as a task tree, and an
+OpenAI-compatible endpoint (/v1/chat/completions) so any tool can send its prompts through SIAC.
 
 Standard library only. Each run executes in its own thread with its own event loop; the page follows it
-through Server-Sent Events, and can replay any saved run from the runs folder.
+through Server-Sent Events, and can replay any saved run from the runs folder. Runs that arrive through the
+API show up on the page while they work.
 """
 
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json
 import os
 import re
@@ -22,6 +25,7 @@ from urllib.parse import parse_qs, urlparse
 
 from .catalog import Catalog
 from .engine import Engine, Limits
+from . import openai_api as oai
 from .gateway import Gateway, GatewayError
 from .runlog import save
 from .simulate import SimulatedGateway
@@ -30,8 +34,9 @@ RUN_ID = re.compile(r"^[\w.-]{1,80}$")
 
 
 class LiveRun:
-    def __init__(self, run_id: str, request: str):
-        self.id, self.request = run_id, request
+    def __init__(self, run_id: str, request: str, source: str = "page"):
+        self.id, self.request, self.source = run_id, request, source
+        self.started = time.time()
         self.events: list[dict] = []
         self.done = False
         self.result: dict | None = None
@@ -49,15 +54,21 @@ class LiveRun:
 
 
 class App:
-    def __init__(self, catalog: Catalog, runs_dir: Path, dry_run_default: bool):
+    def __init__(self, catalog: Catalog, runs_dir: Path, dry_run_default: bool, api_key: str | None = None):
         self.catalog, self.runs_dir = catalog, runs_dir
         self.dry_run_default = dry_run_default
         self.live: dict[str, LiveRun] = {}
         self.has_key = bool(os.environ.get("AI_GATEWAY_API_KEY"))
+        self.api_key = api_key or None
+        self._lock = threading.Lock()
+        self._count = 0
 
-    def start(self, request: str, *, dry_run: bool, profile: str, max_cost: float, allow_split: bool) -> str:
-        run_id = time.strftime("%Y%m%d-%H%M%S") + f"-{len(self.live):03d}"
-        live = LiveRun(run_id, request)
+    def start(self, request: str, *, dry_run: bool, profile: str, max_cost: float, allow_split: bool,
+              source: str = "page") -> str:
+        with self._lock:
+            self._count += 1
+            run_id = time.strftime("%Y%m%d-%H%M%S") + f"-{self._count:03d}"
+        live = LiveRun(run_id, request, source)
         self.live[run_id] = live
 
         def work():
@@ -81,6 +92,16 @@ class App:
 
         threading.Thread(target=work, name=f"run-{run_id}", daemon=True).start()
         return run_id
+
+    def wait(self, run_id: str, timeout: float) -> LiveRun:
+        live = self.live[run_id]
+        with live.cond:
+            live.cond.wait_for(lambda: live.done, timeout=timeout)
+        return live
+
+    def running(self) -> list[dict]:
+        return [{"id": r.id, "request": r.request[:160], "source": r.source, "started": r.started}
+                for r in list(self.live.values()) if not r.done]
 
     def saved_runs(self) -> list[dict]:
         out = []
@@ -135,6 +156,11 @@ def make_handler(app: App):
                             "baseline": app.catalog.baseline, "decider": app.catalog.decider.id})
             elif u.path == "/api/runs":
                 self._json(app.saved_runs())
+            elif u.path == "/api/live":
+                self._json(app.running())
+            elif u.path in ("/v1/models", "/models"):
+                if self._api_auth():
+                    self._json(oai.model_list(list(app.catalog.profiles) or ["all"]))
             elif u.path.startswith("/api/runs/"):
                 run = app.load_run(u.path.rsplit("/", 1)[-1])
                 self._json(run if run else {"error": "not found"}, HTTPStatus.OK if run else HTTPStatus.NOT_FOUND)
@@ -155,8 +181,63 @@ def make_handler(app: App):
             else:
                 self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
 
+        def _api_auth(self) -> bool:
+            if not app.api_key:
+                return True
+            got = (self.headers.get("Authorization") or "").removeprefix("Bearer ").strip()
+            if hmac.compare_digest(got.encode(), app.api_key.encode()):
+                return True
+            self._json(oai.error("wrong or missing API key for this SIAC server", "authentication_error"),
+                       HTTPStatus.UNAUTHORIZED)
+            return False
+
+        def _chat(self):
+            if not self._api_auth():
+                return
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+                body = json.loads(self.rfile.read(min(n, 4_000_000)) or b"{}")
+                if not isinstance(body, dict):
+                    raise oai.BadRequest("the body must be a JSON object")
+                if body.get("tools") or body.get("functions"):
+                    raise oai.BadRequest("SIAC does not support tool calling yet: send plain messages")
+                profiles = list(app.catalog.profiles) or ["all"]
+                model = str(body.get("model") or "siac")
+                profile = oai.profile_from_model(model, profiles)
+                request = oai.request_from_messages(body.get("messages"))
+                opts = body.get("siac") if isinstance(body.get("siac"), dict) else {}
+                max_cost = float(opts.get("max_cost") or self.headers.get("X-SIAC-Max-Cost") or 0.5)
+            except (ValueError, TypeError) as e:
+                return self._json(oai.error(str(e)), HTTPStatus.BAD_REQUEST)
+            dry = bool(opts.get("dry_run")) or not app.has_key or app.dry_run_default
+            run_id = app.start(request, dry_run=dry, profile=profile, max_cost=max_cost,
+                               allow_split=not opts.get("no_split"), source="api")
+            live = app.wait(run_id, timeout=900)
+            if not live.done:
+                return self._json(oai.error("SIAC is still working on this request after 15 minutes", "timeout"),
+                                  HTTPStatus.GATEWAY_TIMEOUT)
+            if live.result is None:
+                msg = next((e.get("message") for e in reversed(live.events) if e.get("type") == "error"),
+                           "the run failed")
+                return self._json(oai.error(str(msg), "upstream_error"), HTTPStatus.BAD_GATEWAY)
+            run = live.result
+            if body.get("stream"):
+                self.send_response(HTTPStatus.OK)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-SIAC-Run-Id", run_id)
+                self.end_headers()
+                for chunk in oai.stream_chunks(run, model):
+                    self.wfile.write(chunk)
+                self.wfile.flush()
+                return
+            self._json(oai.completion(run, model))
+
         def do_POST(self):
-            if urlparse(self.path).path != "/api/run":
+            path = urlparse(self.path).path
+            if path in ("/v1/chat/completions", "/chat/completions"):
+                return self._chat()
+            if path != "/api/run":
                 return self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
             try:
                 n = int(self.headers.get("Content-Length") or 0)
@@ -207,14 +288,19 @@ def make_handler(app: App):
 
 
 def serve(host: str = "127.0.0.1", port: int = 8765, *, runs_dir: str = "runs", dry_run: bool = False,
-          models: str | None = None, open_browser: bool = True) -> None:
+          models: str | None = None, open_browser: bool = True, api_key: str | None = None) -> None:
     catalog = Catalog.load(models)
-    app = App(catalog, Path(runs_dir), dry_run)
+    app = App(catalog, Path(runs_dir), dry_run, api_key=api_key)
     Path(runs_dir).mkdir(parents=True, exist_ok=True)
     httpd = ThreadingHTTPServer((host, port), make_handler(app))
     url = f"http://{host}:{port}/"
     mode = "dry run (no key found)" if not app.has_key else ("dry run by default" if dry_run else "live")
     print(f"SIAC is running at {url}  ·  {mode}  ·  Ctrl+C to stop")
+    print(f"OpenAI-compatible API: base URL {url}v1  ·  model \"siac\""
+          + ("  ·  needs the API key you set" if api_key else ""))
+    if host not in ("127.0.0.1", "localhost", "::1") and not api_key:
+        print("Warning: this server is reachable from other machines and has no API key. "
+              "Anyone who can reach it can spend your credit. Set --api-key or SIAC_API_KEY.")
     if open_browser:
         threading.Timer(0.6, lambda: webbrowser.open(url)).start()
     try:

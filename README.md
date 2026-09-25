@@ -16,10 +16,39 @@ siac demo                     # watch SIAC work on a sample request: no key, no 
 export AI_GATEWAY_API_KEY=... # one Vercel AI Gateway key: Jev plus Claude, GPT and Gemini models
 siac run "Write a short email to move tomorrow's meeting to Thursday"
 siac ui                       # the live task tree in your browser
+siac serve                    # OpenAI-compatible API for your tools (see below)
 ```
 
 Every run is saved in `runs/` as JSON. `siac export runs/<id>.json` turns one into a Markdown report,
 and `siac models --check` compares the catalog prices with the live Vercel catalog.
+
+## Use it from any tool
+
+`siac serve` starts an OpenAI-compatible endpoint. Any tool or library that talks to OpenAI can send its
+prompts through SIAC by changing only the base URL:
+
+```bash
+siac serve                    # http://127.0.0.1:8765/v1 · the live page is on the same address
+```
+
+```python
+from openai import OpenAI
+client = OpenAI(base_url="http://127.0.0.1:8765/v1", api_key="unused")
+reply = client.chat.completions.create(
+    model="siac",             # or "siac/anthropic" to use only Claude models
+    messages=[{"role": "user", "content": "Draft a polite reminder for an unpaid invoice."}],
+)
+print(reply.choices[0].message.content)
+print(reply.model_extra["siac"])   # run id, cost in USD, baseline estimate, saving
+```
+
+- Every request is one SIAC run: it is saved in `runs/` and you can watch it live on the page while it works.
+- System messages and earlier turns are passed to SIAC as context; the last user message is the request.
+- `stream: true` works, but the answer arrives in one piece at the end: SIAC checks the work before answering.
+- Optional per request: `"siac": {"max_cost": 0.2, "no_split": true}` in the body, or the header `X-SIAC-Max-Cost`.
+- Not yet: tool calling and images. SIAC answers them with a clear error instead of guessing.
+- The server listens only on your machine. If you open it to others, set `--api-key` (or `SIAC_API_KEY`):
+  every request spends your credit.
 
 ## How it works
 

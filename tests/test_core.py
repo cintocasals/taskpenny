@@ -342,3 +342,53 @@ def test_benchmark_label_scoring():
                              "3 - Apple Pay or Google Pay", gold, opts)
     assert loose["correct"] == 2 and not loose["strict"]
     assert run.parse_verdict("A is fine but [[B]]") == "B" and run.parse_verdict("no verdict") is None
+
+
+def test_openai_request_from_messages():
+    from siac import openai_api as oai
+    assert oai.request_from_messages([{"role": "user", "content": "Hi"}]) == "Hi"
+    req = oai.request_from_messages([
+        {"role": "system", "content": "Answer in Catalan."},
+        {"role": "user", "content": [{"type": "text", "text": "What is 2+2?"}]},
+        {"role": "assistant", "content": "4"},
+        {"role": "user", "content": "And times 3?"}])
+    assert req.startswith("Instructions to follow:\nAnswer in Catalan.")
+    assert "User: What is 2+2?" in req and "Assistant: 4" in req and req.endswith("And times 3?")
+    assert oai.profile_from_model("siac", ["all", "anthropic"]) == "all"
+    assert oai.profile_from_model("siac/anthropic", ["all", "anthropic"]) == "anthropic"
+    for bad in ([], [{"role": "assistant", "content": "x"}]):
+        with pytest.raises(oai.BadRequest):
+            oai.request_from_messages(bad)
+    with pytest.raises(oai.BadRequest):
+        oai.profile_from_model("gpt-4o", ["all"])
+
+
+def test_openai_endpoint_end_to_end(tmp_path, monkeypatch):
+    import threading
+    from http.server import ThreadingHTTPServer
+
+    import httpx
+
+    from siac.catalog import Catalog
+    from siac.server import App, make_handler
+
+    monkeypatch.delenv("AI_GATEWAY_API_KEY", raising=False)
+    app = App(Catalog.load(), tmp_path, dry_run_default=True, api_key="secret")
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(app))
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{httpd.server_address[1]}/v1"
+    try:
+        auth = {"Authorization": "Bearer secret"}
+        assert httpx.get(base + "/models").status_code == 401
+        ids = [m["id"] for m in httpx.get(base + "/models", headers=auth).json()["data"]]
+        assert ids[0] == "siac" and "siac/anthropic" in ids
+        body = {"model": "siac", "messages": [{"role": "user", "content": "Say hello to the team."}]}
+        r = httpx.post(base + "/chat/completions", json=body, headers=auth, timeout=30).json()
+        assert r["object"] == "chat.completion" and r["choices"][0]["message"]["content"]
+        assert r["siac"]["cost_usd"] >= 0 and (tmp_path / f"{r['siac']['run_id']}.json").exists()
+        s = httpx.post(base + "/chat/completions", json=body | {"stream": True}, headers=auth, timeout=30).text
+        assert s.strip().endswith("data: [DONE]") and '"chat.completion.chunk"' in s
+        bad = httpx.post(base + "/chat/completions", json=body | {"tools": [{"type": "function"}]}, headers=auth)
+        assert bad.status_code == 400 and "tool" in bad.json()["error"]["message"]
+    finally:
+        httpd.shutdown()
