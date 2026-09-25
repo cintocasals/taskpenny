@@ -813,7 +813,7 @@
     "baseline": {
      "model": "anthropic/claude-opus-5.5",
      "estimated_cost": 0.097192,
-     "method": "one call to the baseline model with this request and an answer as long as SIAC's, scaled by the hidden reasoning SIAC's own models used in this run, with no retries",
+     "method": "one call to the baseline model with this request and an answer as long as Taskpenny's, scaled by the hidden reasoning Taskpenny's own models used in this run, with no retries",
      "reasoning_factor": 1.18
     },
     "saving_pct": 54.7
@@ -844,7 +844,7 @@
   "baseline": {
    "model": "anthropic/claude-opus-5.5",
    "estimated_cost": 0.097192,
-   "method": "one call to the baseline model with this request and an answer as long as SIAC's, scaled by the hidden reasoning SIAC's own models used in this run, with no retries",
+   "method": "one call to the baseline model with this request and an answer as long as Taskpenny's, scaled by the hidden reasoning Taskpenny's own models used in this run, with no retries",
    "reasoning_factor": 1.18
   },
   "saving_pct": 54.7

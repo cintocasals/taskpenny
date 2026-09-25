@@ -1,23 +1,23 @@
-# Contributing to SIAC
+# Contributing to Taskpenny
 
-Thanks for helping. SIAC is small on purpose: a few Python files, one YAML catalog and one HTML page.
+Thanks for helping. Taskpenny is small on purpose: a few Python files, one YAML catalog and one HTML page.
 
 ## Set up
 
 ```bash
-git clone https://github.com/cintocasals/siac && cd siac
+git clone https://github.com/cintocasals/taskpenny && cd taskpenny
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 pytest -q              # no key needed: tests use a scripted gateway
-siac demo              # the whole flow with simulated models
+taskpenny demo              # the whole flow with simulated models
 ```
 
 ## Good ways to help
 
-- **Add or re-tier a model.** Edit `src/siac/models.yaml`, run `siac models --check` for prices, and open a pull
+- **Add or re-tier a model.** Edit `src/taskpenny/models.yaml`, run `taskpenny models --check` for prices, and open a pull
   request that says why the tier fits. Benchmark numbers beat opinions.
 - **Run the benchmark** (`bench/public/`) with your keys and share the report in an issue.
-- **Translate the live page.** The strings are in `src/siac/web/index.html` (`I18N`); copy the English block.
+- **Translate the live page.** The strings are in `src/taskpenny/web/index.html` (`I18N`); copy the English block.
 - **Improve a prompt** (planner, worker, aggregator) with a before and after on the development cases
   (`bench/run_dev.py --dry-run` first, then live with a small `--total-budget`).
 - Issues labelled `good first issue` are a gentle start.
@@ -32,5 +32,11 @@ siac demo              # the whole flow with simulated models
 
 ## Pull requests
 
-Describe what changes for the person using SIAC, how you tested it, and, if it touches cost or quality, what
+Describe what changes for the person using Taskpenny, how you tested it, and, if it touches cost or quality, what
 the numbers were. CI runs the tests on Python 3.10, 3.12 and 3.13 and builds the Docker image.
+
+## Releases
+
+Maintainers set the new version in `pyproject.toml` and `src/taskpenny/__init__.py`, add it to `CHANGELOG.md`,
+push a tag `vX.Y.Z` and publish a GitHub release from it. The release workflow checks that the tag matches the
+version, builds the package and publishes it to PyPI with trusted publishing, so no PyPI token is stored.

@@ -4,12 +4,12 @@ import json
 
 import pytest
 
-from siac.catalog import Catalog, NoModelError
-from siac.decider import Decider, Settings
-from siac.engine import Engine, Limits, split_notes
-from siac.gateway import ChatResult, EvalResult, Usage, confidence_from_probs
-from siac.planner import PlanError, _extract_json, parse_plan
-from siac.simulate import SimulatedGateway
+from taskpenny.catalog import Catalog, NoModelError
+from taskpenny.decider import Decider, Settings
+from taskpenny.engine import Engine, Limits, split_notes
+from taskpenny.gateway import ChatResult, EvalResult, Usage, confidence_from_probs
+from taskpenny.planner import PlanError, _extract_json, parse_plan
+from taskpenny.simulate import SimulatedGateway
 
 
 @pytest.fixture(scope="module")
@@ -230,7 +230,7 @@ async def test_no_split_flag(catalog):
 
 
 async def test_dry_run_demo_end_to_end(catalog):
-    from siac.cli import DEMO_PROMPT
+    from taskpenny.cli import DEMO_PROMPT
     gw = SimulatedGateway(catalog, latency=(0, 0.001))
     res = await Engine(gw, catalog).run(DEMO_PROMPT)
     assert res.status == "done"
@@ -240,7 +240,7 @@ async def test_dry_run_demo_end_to_end(catalog):
 
 
 def test_cli_models_and_demo(tmp_path, capsys):
-    from siac.cli import main
+    from taskpenny.cli import main
     assert main(["models"]) == 0
     assert "Cheapest per tier" in capsys.readouterr().out
     assert main(["demo", "--save-dir", str(tmp_path), "--quiet"]) == 0
@@ -248,7 +248,7 @@ def test_cli_models_and_demo(tmp_path, capsys):
 
 
 async def test_refused_model_falls_back_to_next_in_tier(catalog):
-    from siac.gateway import GatewayError
+    from taskpenny.gateway import GatewayError
 
     class Refusing(ScriptedGateway):
         async def chat(self, model, messages, **kw):
@@ -275,14 +275,14 @@ def test_chain_order(catalog):
 
 
 def test_stitch_falls_back_to_plan_order():
-    from siac.engine import Node, stitch
+    from taskpenny.engine import Node, stitch
     kids = [Node(id="t1", title="One", prompt="", depth=1, result="first"),
             Node(id="t2", title="Two", prompt="", depth=1, result="second")]
     assert stitch("not json", kids) == "## One\n\nfirst\n\n## Two\n\nsecond"
 
 
 async def test_split_needs_a_list_or_high_confidence(catalog):
-    from siac.decider import Decider
+    from taskpenny.decider import Decider
     d = Decider(ScriptedGateway(catalog), catalog)
     g = await d.gate("x")
     g.tier_raw, g.split_probability = 3, 0.8
@@ -312,7 +312,7 @@ async def test_parallel_calls_cannot_overshoot_the_budget(catalog):
 
 
 def test_export_markdown(tmp_path, capsys):
-    from siac.cli import main
+    from taskpenny.cli import main
     assert main(["demo", "--save-dir", str(tmp_path), "--quiet"]) == 0
     run = next(tmp_path.glob("*.json"))
     assert main(["export", str(run)]) == 0
@@ -350,7 +350,7 @@ def test_benchmark_label_scoring():
 
 
 def test_openai_request_from_messages():
-    from siac import openai_api as oai
+    from taskpenny import openai_api as oai
     assert oai.request_from_messages([{"role": "user", "content": "Hi"}]) == "Hi"
     req = oai.request_from_messages([
         {"role": "system", "content": "Answer in Catalan."},
@@ -359,8 +359,8 @@ def test_openai_request_from_messages():
         {"role": "user", "content": "And times 3?"}])
     assert req.startswith("Instructions to follow:\nAnswer in Catalan.")
     assert "User: What is 2+2?" in req and "Assistant: 4" in req and req.endswith("And times 3?")
-    assert oai.profile_from_model("siac", ["all", "anthropic"]) == "all"
-    assert oai.profile_from_model("siac/anthropic", ["all", "anthropic"]) == "anthropic"
+    assert oai.profile_from_model("taskpenny", ["all", "anthropic"]) == "all"
+    assert oai.profile_from_model("taskpenny/anthropic", ["all", "anthropic"]) == "anthropic"
     for bad in ([], [{"role": "assistant", "content": "x"}]):
         with pytest.raises(oai.BadRequest):
             oai.request_from_messages(bad)
@@ -374,8 +374,8 @@ def test_openai_endpoint_end_to_end(tmp_path, monkeypatch):
 
     import httpx
 
-    from siac.catalog import Catalog
-    from siac.server import App, make_handler
+    from taskpenny.catalog import Catalog
+    from taskpenny.server import App, make_handler
 
     monkeypatch.delenv("AI_GATEWAY_API_KEY", raising=False)
     app = App(Catalog.load(), tmp_path, dry_run_default=True, api_key="secret")
@@ -386,11 +386,11 @@ def test_openai_endpoint_end_to_end(tmp_path, monkeypatch):
         auth = {"Authorization": "Bearer secret"}
         assert httpx.get(base + "/models").status_code == 401
         ids = [m["id"] for m in httpx.get(base + "/models", headers=auth).json()["data"]]
-        assert ids[0] == "siac" and "siac/anthropic" in ids
-        body = {"model": "siac", "messages": [{"role": "user", "content": "Say hello to the team."}]}
+        assert ids[0] == "taskpenny" and "taskpenny/anthropic" in ids
+        body = {"model": "taskpenny", "messages": [{"role": "user", "content": "Say hello to the team."}]}
         r = httpx.post(base + "/chat/completions", json=body, headers=auth, timeout=30).json()
         assert r["object"] == "chat.completion" and r["choices"][0]["message"]["content"]
-        assert r["siac"]["cost_usd"] >= 0 and (tmp_path / f"{r['siac']['run_id']}.json").exists()
+        assert r["taskpenny"]["cost_usd"] >= 0 and (tmp_path / f"{r['taskpenny']['run_id']}.json").exists()
         s = httpx.post(base + "/chat/completions", json=body | {"stream": True}, headers=auth, timeout=30).text
         assert s.strip().endswith("data: [DONE]") and '"chat.completion.chunk"' in s
         bad = httpx.post(base + "/chat/completions", json=body | {"tools": [{"type": "function"}]}, headers=auth)
@@ -407,7 +407,7 @@ def _mock_client(handler):
 async def test_direct_anthropic_and_openai_formats(catalog):
     import httpx
 
-    from siac.providers import PROVIDERS, DirectClient
+    from taskpenny.providers import PROVIDERS, DirectClient
     seen = {}
 
     def handler(request: httpx.Request):
@@ -437,7 +437,7 @@ async def test_direct_anthropic_and_openai_formats(catalog):
 async def test_direct_retries_without_refused_controls(catalog):
     import httpx
 
-    from siac.providers import PROVIDERS, DirectClient
+    from taskpenny.providers import PROVIDERS, DirectClient
     bodies = []
 
     def handler(request):
@@ -454,8 +454,8 @@ async def test_direct_retries_without_refused_controls(catalog):
 
 
 async def test_llm_decider_answers_jev_questions(catalog):
-    from siac.gateway import ChatResult, Usage
-    from siac.providers import LLMDecider
+    from taskpenny.gateway import ChatResult, Usage
+    from taskpenny.providers import LLMDecider
 
     async def chat(model, messages, **kw):
         assert kw["json_mode"] and "QUESTIONS" in messages[-1]["content"]
@@ -474,10 +474,10 @@ async def test_llm_decider_answers_jev_questions(catalog):
 
 
 def test_connect_picks_routes_from_keys(catalog, monkeypatch):
-    from siac.gateway import Gateway, GatewayError
-    from siac.providers import MultiGateway, connect
+    from taskpenny.gateway import Gateway, GatewayError
+    from taskpenny.providers import MultiGateway, connect
     for v in ("AI_GATEWAY_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY",
-              "DEEPSEEK_API_KEY", "DASHSCOPE_API_KEY", "SIAC_DIRECT", "SIAC_DECIDER"):
+              "DEEPSEEK_API_KEY", "DASHSCOPE_API_KEY", "TASKPENNY_DIRECT", "TASKPENNY_DECIDER"):
         monkeypatch.delenv(v, raising=False)
     with pytest.raises(GatewayError):
         connect(catalog)
@@ -493,22 +493,22 @@ def test_connect_picks_routes_from_keys(catalog, monkeypatch):
     with pytest.raises(GatewayError):
         gw.route("openai/gpt-6-luna")
     monkeypatch.setenv("AI_GATEWAY_API_KEY", "v")
-    monkeypatch.setenv("SIAC_DIRECT", "anthropic")
+    monkeypatch.setenv("TASKPENNY_DIRECT", "anthropic")
     gw, cat = connect(catalog)
     assert gw.route("anthropic/claude-sonnet-5") == "anthropic" and gw.route("openai/gpt-6-luna") == "vercel"
     assert gw.decider is None  # Jev still decides
 
 
 def test_local_models_go_first_and_keep_cloud_fallbacks(catalog, monkeypatch):
-    from siac.providers import connect, local_models
+    from taskpenny.providers import connect, local_models
     ms = local_models("qwen3:4b, qwen3:8b@2")
     assert [(m.id, m.tiers, m.direct_id) for m in ms] == [("ollama/qwen3:4b", (1,), "qwen3:4b"),
                                                           ("ollama/qwen3:8b", (1, 2), "qwen3:8b")]
     for v in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY", "DEEPSEEK_API_KEY",
-              "DASHSCOPE_API_KEY", "SIAC_DIRECT", "SIAC_DECIDER"):
+              "DASHSCOPE_API_KEY", "TASKPENNY_DIRECT", "TASKPENNY_DECIDER"):
         monkeypatch.delenv(v, raising=False)
     monkeypatch.setenv("AI_GATEWAY_API_KEY", "v")
-    monkeypatch.setenv("SIAC_LOCAL", "qwen3:4b")
+    monkeypatch.setenv("TASKPENNY_LOCAL", "qwen3:4b")
     gw, cat = connect(catalog)
     chain = [m.id for m in cat.chain(1)]
     assert chain[0] == "ollama/qwen3:4b" and "openai/gpt-6-luna" in chain  # free first, cloud still behind it
@@ -531,7 +531,7 @@ async def test_math_and_code_never_go_below_tier_2(catalog):
 async def test_timed_out_chat_is_not_sent_again(catalog):
     import httpx
 
-    from siac.gateway import Gateway, GatewayError
+    from taskpenny.gateway import Gateway, GatewayError
     calls = []
 
     def handler(request):
@@ -570,7 +570,7 @@ def _serve(app):
     import threading
     from http.server import ThreadingHTTPServer
 
-    from siac.server import make_handler
+    from taskpenny.server import make_handler
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(app))
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     return httpd, f"http://127.0.0.1:{httpd.server_address[1]}"
@@ -579,8 +579,8 @@ def _serve(app):
 def test_server_protects_everything_but_the_page(tmp_path, monkeypatch):
     import httpx
 
-    from siac.catalog import Catalog
-    from siac.server import App
+    from taskpenny.catalog import Catalog
+    from taskpenny.server import App
     monkeypatch.delenv("AI_GATEWAY_API_KEY", raising=False)
     httpd, base = _serve(App(Catalog.load(), tmp_path, dry_run_default=True, api_key="secret"))
     try:
@@ -599,7 +599,7 @@ def test_server_protects_everything_but_the_page(tmp_path, monkeypatch):
                         {"request": "hi", "profile": "nobody"}, {"request": ""}):
                 assert c.post("/api/run", json=bad).status_code == 400, bad
             ok = c.post("/api/run", json={"request": "hi", "max_cost": 999}).json()
-            assert ok["max_cost"] == 2.0  # capped by SIAC_MAX_COST
+            assert ok["max_cost"] == 2.0  # capped by TASKPENNY_MAX_COST
             assert c.post("/api/run", content=b"[1, 2]", headers={"Content-Type": "application/json"}).status_code == 400
         assert httpx.get(base + "/api/info", headers={"Authorization": "Bearer secret"}).status_code == 200
     finally:
@@ -609,8 +609,8 @@ def test_server_protects_everything_but_the_page(tmp_path, monkeypatch):
 def test_a_crashing_run_still_ends_for_its_watchers(tmp_path, monkeypatch):
     import httpx
 
-    from siac import server
-    from siac.catalog import Catalog
+    from taskpenny import server
+    from taskpenny.catalog import Catalog
 
     class Broken:
         def __init__(self, *a, **k):
@@ -636,20 +636,20 @@ def test_a_crashing_run_still_ends_for_its_watchers(tmp_path, monkeypatch):
 def test_responses_api(tmp_path, monkeypatch):
     import httpx
 
-    from siac.catalog import Catalog
-    from siac.server import App
+    from taskpenny.catalog import Catalog
+    from taskpenny.server import App
     monkeypatch.delenv("AI_GATEWAY_API_KEY", raising=False)
     httpd, base = _serve(App(Catalog.load(), tmp_path, dry_run_default=True))
     try:
-        r = httpx.post(base + "/v1/responses", json={"model": "siac", "instructions": "Be brief.",
+        r = httpx.post(base + "/v1/responses", json={"model": "taskpenny", "instructions": "Be brief.",
                                                      "input": [{"role": "user", "content": [
                                                          {"type": "input_text", "text": "Say hello"}]}]},
                        timeout=30).json()
         assert r["object"] == "response" and r["status"] == "completed" and r["output_text"]
-        assert r["output"][0]["content"][0]["type"] == "output_text" and r["siac"]["run_id"]
-        s = httpx.post(base + "/v1/responses", json={"model": "siac", "input": "Hi", "stream": True}, timeout=30).text
+        assert r["output"][0]["content"][0]["type"] == "output_text" and r["taskpenny"]["run_id"]
+        s = httpx.post(base + "/v1/responses", json={"model": "taskpenny", "input": "Hi", "stream": True}, timeout=30).text
         assert "event: response.completed" in s and "response.output_text.delta" in s
-        bad = httpx.post(base + "/v1/responses", json={"model": "siac", "input": 5})
+        bad = httpx.post(base + "/v1/responses", json={"model": "taskpenny", "input": 5})
         assert bad.status_code == 400 and bad.json()["error"]["message"]
     finally:
         httpd.shutdown()

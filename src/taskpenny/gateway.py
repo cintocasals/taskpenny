@@ -115,13 +115,13 @@ class Gateway:
         self.api_key = api_key or os.environ.get("AI_GATEWAY_API_KEY", "")
         if not self.api_key:
             raise GatewayError(401, "No AI_GATEWAY_API_KEY. Create one at vercel.com -> AI Gateway -> API Keys, "
-                                    "or run with --dry-run to see SIAC work without a key.")
+                                    "or run with --dry-run to see Taskpenny work without a key.")
         self.catalog = catalog
         self.base_url = (base_url or os.environ.get("AI_GATEWAY_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
         self.timeout, self.eval_timeout, self.retries = timeout, eval_timeout, retries
         self._client = client or httpx.AsyncClient(
             headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json",
-                     "User-Agent": f"siac/{__version__}"},
+                     "User-Agent": f"taskpenny/{__version__}"},
             timeout=timeout,
         )
 

@@ -3,9 +3,8 @@ requires = ["hatchling>=1.24"]
 build-backend = "hatchling.build"
 
 [project]
-# Provisional distribution name: "siac" is already taken on PyPI. Final name before v1.0.
-name = "siac-ai"
-version = "0.4.0"
+name = "taskpenny"
+version = "0.5.0"
 description = "Split a big prompt into small tasks and send each one to the cheapest model that can do it well. Decisions by Jev."
 readme = "README.md"
 license = "MIT"
@@ -25,18 +24,18 @@ classifiers = [
 dependencies = ["httpx>=0.27", "pyyaml>=6.0"]
 
 [project.urls]
-Homepage = "https://github.com/cintocasals/siac"
-Documentation = "https://github.com/cintocasals/siac/tree/main/docs"
-Issues = "https://github.com/cintocasals/siac/issues"
+Homepage = "https://github.com/cintocasals/taskpenny"
+Documentation = "https://github.com/cintocasals/taskpenny/tree/main/docs"
+Issues = "https://github.com/cintocasals/taskpenny/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-asyncio>=0.23"]
 
 [project.scripts]
-siac = "siac.cli:main"
+taskpenny = "taskpenny.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/siac"]
+packages = ["src/taskpenny"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

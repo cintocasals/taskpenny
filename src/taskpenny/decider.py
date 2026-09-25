@@ -1,4 +1,4 @@
-"""Every closed decision in SIAC goes through Jev: split or not, which tier, is a result good enough.
+"""Every closed decision in Taskpenny goes through Jev: split or not, which tier, is a result good enough.
 
 Jev also *solves* tasks whose answer is a choice, a yes/no or a score (idea 18): no language model needed.
 Questions and criteria are written in English, which is where Jev is most accurate, whatever the

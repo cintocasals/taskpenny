@@ -1,5 +1,5 @@
-"""`siac ui` and `siac serve`: a local page that shows every run live as a task tree, and an
-OpenAI-compatible endpoint (/v1/chat/completions) so any tool can send its prompts through SIAC.
+"""`taskpenny ui` and `taskpenny serve`: a local page that shows every run live as a task tree, and an
+OpenAI-compatible endpoint (/v1/chat/completions) so any tool can send its prompts through Taskpenny.
 
 Standard library only. Each run executes in its own thread with its own event loop; the page follows it
 through Server-Sent Events, and can replay any saved run from the runs folder. Runs that arrive through the
@@ -39,7 +39,7 @@ from .runlog import save
 from .simulate import SimulatedGateway
 
 RUN_ID = re.compile(r"^[\w.-]{1,80}$")
-COOKIE = "siac_session"
+COOKIE = "taskpenny_session"
 MAX_BODY = 4_000_000
 KEEP_FINISHED_S = 600  # finished runs stay followable this long, then only their saved file remains
 
@@ -77,9 +77,9 @@ class App:
         self.live: dict[str, LiveRun] = {}
         self.has_key = has_any_key()
         self.api_key = api_key or None
-        self.session = (hmac.new(self.api_key.encode(), b"siac-session-v1", hashlib.sha256).hexdigest()
+        self.session = (hmac.new(self.api_key.encode(), b"taskpenny-session-v1", hashlib.sha256).hexdigest()
                         if self.api_key else "")
-        cap = max_cost_cap if max_cost_cap is not None else float(os.environ.get("SIAC_MAX_COST", "2") or 2)
+        cap = max_cost_cap if max_cost_cap is not None else float(os.environ.get("TASKPENNY_MAX_COST", "2") or 2)
         self.max_cost_cap = cap if math.isfinite(cap) and cap > 0 else 2.0
         self.profiles = list(catalog.profiles) or ["all"]
         self.decider_label = ""
@@ -176,10 +176,10 @@ class App:
 
 
 def make_handler(app: App):
-    page = resources.files("siac").joinpath("web/index.html").read_bytes()
+    page = resources.files("taskpenny").joinpath("web/index.html").read_bytes()
 
     class Handler(BaseHTTPRequestHandler):
-        server_version = "siac"
+        server_version = "taskpenny"
 
         def log_message(self, *args):  # quiet
             pass
@@ -213,7 +213,7 @@ def make_handler(app: App):
         def _require_auth(self, api_style: bool = False) -> bool:
             if self._authorized():
                 return True
-            msg = "wrong or missing API key for this SIAC server"
+            msg = "wrong or missing API key for this Taskpenny server"
             self._json(oai.error(msg, "authentication_error") if api_style else {"error": "login required"},
                        HTTPStatus.UNAUTHORIZED)
             return False
@@ -281,7 +281,7 @@ def make_handler(app: App):
                 body = to_markdown(run).encode("utf-8")
                 self.send_response(HTTPStatus.OK)
                 self.send_header("Content-Type", "text/markdown; charset=utf-8")
-                self.send_header("Content-Disposition", f'attachment; filename="siac-{run.get("id", "run")}.md"')
+                self.send_header("Content-Disposition", f'attachment; filename="taskpenny-{run.get("id", "run")}.md"')
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
@@ -344,22 +344,22 @@ def make_handler(app: App):
                 return
             body = self._body()
             if body.get("tools") or body.get("functions"):
-                raise BadInput("SIAC does not support tool calling yet: send plain messages")
-            model = str(body.get("model") or "siac")
+                raise BadInput("Taskpenny does not support tool calling yet: send plain messages")
+            model = str(body.get("model") or "taskpenny")
             try:
                 profile = oai.profile_from_model(model, app.profiles)
                 request = (oai.request_from_responses(body) if responses
                            else oai.request_from_messages(body.get("messages")))
             except oai.BadRequest as e:
                 raise BadInput(str(e)) from None
-            opts = body.get("siac") if isinstance(body.get("siac"), dict) else {}
-            max_cost = app.budget(opts.get("max_cost") or self.headers.get("X-SIAC-Max-Cost"))
+            opts = body.get("taskpenny") if isinstance(body.get("taskpenny"), dict) else {}
+            max_cost = app.budget(opts.get("max_cost") or self.headers.get("X-Taskpenny-Max-Cost"))
             dry = bool(opts.get("dry_run")) or not app.has_key or app.dry_run_default
             run_id = app.start(request, dry_run=dry, profile=profile, max_cost=max_cost,
                                allow_split=not opts.get("no_split"), source="api")
             live = app.wait(run_id, timeout=900)
             if not live.done:
-                return self._json(oai.error("SIAC is still working on this request after 15 minutes", "timeout"),
+                return self._json(oai.error("Taskpenny is still working on this request after 15 minutes", "timeout"),
                                   HTTPStatus.GATEWAY_TIMEOUT)
             if live.result is None:
                 msg = next((e.get("message") for e in reversed(live.events) if e.get("type") == "error"),
@@ -370,7 +370,7 @@ def make_handler(app: App):
                 self.send_response(HTTPStatus.OK)
                 self.send_header("Content-Type", "text/event-stream")
                 self.send_header("Cache-Control", "no-store")
-                self.send_header("X-SIAC-Run-Id", run_id)
+                self.send_header("X-Taskpenny-Run-Id", run_id)
                 self.end_headers()
                 for chunk in (oai.response_events(run, model) if responses else oai.stream_chunks(run, model)):
                     self.wfile.write(chunk)
@@ -422,13 +422,13 @@ def serve(host: str = "127.0.0.1", port: int = 8765, *, runs_dir: str = "runs", 
     httpd = ThreadingHTTPServer((host, port), make_handler(app))
     url = f"http://{host}:{port}/"
     mode = "dry run (no key found)" if not app.has_key else ("dry run by default" if dry_run else "live")
-    print(f"SIAC is running at {url}  ·  {mode}  ·  Ctrl+C to stop")
-    print(f"OpenAI-compatible API: base URL {url}v1  ·  model \"siac\""
+    print(f"Taskpenny is running at {url}  ·  {mode}  ·  Ctrl+C to stop")
+    print(f"OpenAI-compatible API: base URL {url}v1  ·  model \"taskpenny\""
           + ("  ·  the page and the API need the key you set" if api_key else ""))
-    print(f"Budget per run: at most ${app.max_cost_cap:g} (SIAC_MAX_COST)")
+    print(f"Budget per run: at most ${app.max_cost_cap:g} (TASKPENNY_MAX_COST)")
     if host not in ("127.0.0.1", "localhost", "::1") and not api_key:
         print("Warning: this server is reachable from other machines and has no API key. "
-              "Anyone who can reach it can see your runs and spend your credit. Set --api-key or SIAC_API_KEY.")
+              "Anyone who can reach it can see your runs and spend your credit. Set --api-key or TASKPENNY_API_KEY.")
     if open_browser:
         threading.Timer(0.6, lambda: webbrowser.open(url)).start()
     try:

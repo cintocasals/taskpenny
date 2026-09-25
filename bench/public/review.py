@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Blind human review: pick 20 judged pairs, hide which answer is SIAC's, and later compare with the judge.
+"""Blind human review: pick 20 judged pairs, hide which answer is Taskpenny's, and later compare with the judge.
 
   python bench/public/review.py pick results/public-live-X.jsonl     -> review-X.json (pairs) + review-X.key.json
   python bench/public/review.py score results/public-live-X.jsonl votes.json
@@ -12,11 +12,13 @@ import random
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+from run import read_results  # noqa: E402  (same folder)
+
 
 def pick(results: Path, n: int = 20, seed: int = 2026) -> None:
-    rows = [json.loads(line) for line in results.read_text(encoding="utf-8").splitlines() if line]
-    rows = [r for r in rows if r["quality"]["mode"] == "pairwise" and r["quality"]["winner"] in ("siac", "baseline",
-                                                                                                "tie")]
+    rows = [r for r in read_results(results)
+            if r["quality"]["mode"] == "pairwise" and r["quality"]["winner"] in ("taskpenny", "baseline", "tie")]
     rng = random.Random(seed)
     by_set: dict[str, list] = {}
     for r in rows:
@@ -33,11 +35,11 @@ def pick(results: Path, n: int = 20, seed: int = 2026) -> None:
                                   .read_text(encoding="utf-8").splitlines() if x)}
     pairs, key = [], {}
     for r in chosen:
-        siac_first = rng.random() < 0.5
-        a, b = (r["siac"]["answer"], r["baseline"]["answer"]) if siac_first else \
-            (r["baseline"]["answer"], r["siac"]["answer"])
+        taskpenny_first = rng.random() < 0.5
+        a, b = (r["taskpenny"]["answer"], r["baseline"]["answer"]) if taskpenny_first else \
+            (r["baseline"]["answer"], r["taskpenny"]["answer"])
         pairs.append({"id": r["id"], "set": r["set"], "prompt": tasks[r["id"]]["prompt"], "a": a, "b": b})
-        key[r["id"]] = {"A": "siac" if siac_first else "baseline", "B": "baseline" if siac_first else "siac",
+        key[r["id"]] = {"A": "taskpenny" if taskpenny_first else "baseline", "B": "baseline" if taskpenny_first else "taskpenny",
                         "judge": r["quality"]["winner"]}
     stem = results.stem.replace("public-", "review-")
     (results.parent / f"{stem}.json").write_text(json.dumps(pairs, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -48,14 +50,14 @@ def pick(results: Path, n: int = 20, seed: int = 2026) -> None:
 def score(results: Path, votes_path: Path) -> None:
     key = json.loads((results.parent / (results.stem.replace("public-", "review-") + ".key.json")).read_text())
     votes = json.loads(votes_path.read_text())
-    agree, person = 0, {"siac": 0, "baseline": 0, "tie": 0}
+    agree, person = 0, {"taskpenny": 0, "baseline": 0, "tie": 0}
     for tid, v in votes.items():
-        k = key[tid]
+        k = {s: "taskpenny" if w == "siac" else w for s, w in key[tid].items()}  # keys made before the rename
         who = "tie" if v == "tie" else k[v]
         person[who] += 1
         agree += who == k["judge"]
     n = len(votes) or 1
-    print(f"Person: SIAC better {person['siac']}, tie {person['tie']}, baseline better {person['baseline']} "
+    print(f"Person: Taskpenny better {person['taskpenny']}, tie {person['tie']}, baseline better {person['baseline']} "
           f"· agrees with the judge on {agree}/{len(votes)} ({100 * agree / n:.0f}%)")
 
 

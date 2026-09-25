@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Public benchmark: SIAC against one strong model, on the same tasks, with real costs from the gateway.
+"""Public benchmark: Taskpenny against one strong model, on the same tasks, with real costs from the gateway.
 
 For every task in tasks.jsonl:
-  1. SIAC answers it (Jev decides, cheap models work, Jev checks).
+  1. Taskpenny answers it (Jev decides, cheap models work, Jev checks).
   2. The baseline model answers it in one call, with its default settings.
   3. Quality: classification tasks are scored against their true labels; every other task is judged pairwise
      by a third model from another provider, twice with the answers swapped (a verdict counts only if both
@@ -26,10 +26,10 @@ from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 
-from siac.catalog import Catalog
-from siac.engine import Engine, Limits
-from siac.gateway import GatewayError
-from siac.simulate import SimulatedGateway
+from taskpenny.catalog import Catalog
+from taskpenny.engine import Engine, Limits
+from taskpenny.gateway import GatewayError
+from taskpenny.simulate import SimulatedGateway
 
 HERE = Path(__file__).parent
 RESULTS = HERE.parent / "results"
@@ -102,6 +102,20 @@ def score_labels(answer: str, gold: dict[str, str], options: list[str]) -> dict:
 CORE = {"hard": 5, "multi": 5, "classify": 5, "ca": 3, "es": 2}
 
 
+def read_results(path) -> list[dict]:
+    """Rows of a results .jsonl. Runs made before the rename, when Taskpenny was called SIAC, are read too."""
+    rows = [json.loads(line) for line in Path(path).read_text(encoding="utf-8").splitlines() if line]
+    for r in rows:
+        if "siac" in r and "taskpenny" not in r:
+            r["taskpenny"] = r.pop("siac")
+            q = r.get("quality") or {}
+            if "siac" in q:
+                q["taskpenny"] = q.pop("siac")
+            if q.get("winner") == "siac":
+                q["winner"] = "taskpenny"
+    return rows
+
+
 def core_set(tasks: list[dict], seed: int) -> list[dict]:
     """A smaller set with the same shape: 5 MT-Bench tasks per category and a few of every other set."""
     rng = random.Random(seed)
@@ -168,7 +182,7 @@ async def vercel_balance() -> float | None:
         return None
 
 
-async def run_siac(task, catalog, gw, args) -> dict:
+async def run_taskpenny(task, catalog, gw, args) -> dict:
     eng = Engine(gw, catalog, limits=Limits(max_cost=args.max_cost))
     t0 = time.perf_counter()
     res = await eng.run(task["prompt"])
@@ -199,13 +213,13 @@ async def run_baseline(task, gw, args) -> dict:
             "seconds": round(time.perf_counter() - t0, 1), "model": r.model}
 
 
-async def judge(task, siac: str, base: str, gw, args) -> dict:
-    """Two calls with the order swapped. Returns 'siac', 'baseline' or 'tie'."""
+async def judge(task, taskpenny: str, base: str, gw, args) -> dict:
+    """Two calls with the order swapped. Returns 'taskpenny', 'baseline' or 'tie'."""
     rng = random.Random(f"{args.seed}-{task['id']}")
     system = JUDGE_SYSTEM + (JUDGE_REF if task.get("reference") else "")
-    first_siac = rng.random() < 0.5
-    orders = [(siac, base, "siac", "baseline"), (base, siac, "baseline", "siac")]
-    if not first_siac:
+    first_taskpenny = rng.random() < 0.5
+    orders = [(taskpenny, base, "taskpenny", "baseline"), (base, taskpenny, "baseline", "taskpenny")]
+    if not first_taskpenny:
         orders.reverse()
     votes, cost, notes = [], 0.0, []
     for a, b, name_a, name_b in orders:
@@ -237,23 +251,23 @@ async def one(task, catalog, gw, args) -> dict:
     async def keep(x):
         return x
     # a side taken from an earlier run is not run (nor paid) again
-    siac, base = await asyncio.gather(keep(reused) if reused else run_siac(task, catalog, gw, args),
-                                      keep(reused_base) if reused_base else run_baseline(task, gw, args))
+    taskpenny, base = await asyncio.gather(keep(reused) if reused else run_taskpenny(task, catalog, gw, args),
+                                           keep(reused_base) if reused_base else run_baseline(task, gw, args))
     row = {"id": task["id"], "set": task["set"], "lang": task["lang"], "category": task.get("category"),
-           "siac": siac, "baseline": base}
+           "taskpenny": taskpenny, "baseline": base}
     if task["judge"] == "gold":
-        s, b = score_labels(siac["answer"], task["gold"], task["options"]), \
+        s, b = score_labels(taskpenny["answer"], task["gold"], task["options"]), \
             score_labels(base["answer"], task["gold"], task["options"])
-        row["quality"] = {"mode": "gold", "siac": s, "baseline": b,
-                          "winner": "siac" if s["correct"] > b["correct"] else
+        row["quality"] = {"mode": "gold", "taskpenny": s, "baseline": b,
+                          "winner": "taskpenny" if s["correct"] > b["correct"] else
                           "baseline" if b["correct"] > s["correct"] else "tie", "cost": 0.0}
-    elif not base["answer"].strip() or not siac["answer"].strip():
-        row["quality"] = {"mode": "pairwise", "winner": "siac" if base["answer"].strip() == "" and siac["answer"].strip()
-                          else "baseline" if siac["answer"].strip() == "" and base["answer"].strip() else "none",
+    elif not base["answer"].strip() or not taskpenny["answer"].strip():
+        row["quality"] = {"mode": "pairwise", "winner": "taskpenny" if base["answer"].strip() == "" and taskpenny["answer"].strip()
+                          else "baseline" if taskpenny["answer"].strip() == "" and base["answer"].strip() else "none",
                           "votes": [], "cost": 0.0, "notes": ["one side gave no answer"]}
     else:
-        row["quality"] = {"mode": "pairwise", **await judge(task, siac["answer"], base["answer"], gw, args)}
-    row["cost_total"] = ((0.0 if reused else siac["cost"]) + (0.0 if reused_base else base["cost"])
+        row["quality"] = {"mode": "pairwise", **await judge(task, taskpenny["answer"], base["answer"], gw, args)}
+    row["cost_total"] = ((0.0 if reused else taskpenny["cost"]) + (0.0 if reused_base else base["cost"])
                          + row["quality"].get("cost", 0.0))
     return row
 
@@ -261,10 +275,10 @@ async def one(task, catalog, gw, args) -> dict:
 def report(rows: list[dict], args) -> str:
     def money(x):
         return f"${x:.4f}"
-    lines = [f"# SIAC public benchmark · {datetime.now():%Y-%m-%d %H:%M}", "",
+    lines = [f"# Taskpenny public benchmark · {datetime.now():%Y-%m-%d %H:%M}", "",
              f"Baseline: `{args.baseline}` · judge: `{args.judge}` · tasks: {len(rows)}", "",
-             "| Set | Tasks | SIAC cost | Baseline cost | Saving | SIAC wins | Ties | Baseline wins | "
-             "SIAC as good or better | SIAC time | Baseline time |",
+             "| Set | Tasks | Taskpenny cost | Baseline cost | Saving | Taskpenny wins | Ties | Baseline wins | "
+             "Taskpenny as good or better | Taskpenny time | Baseline time |",
              "|---|---|---|---|---|---|---|---|---|---|---|"]
     groups = ["all"] + sorted({r["set"] for r in rows}, key=lambda s: ["mtbench", "hard", "multi", "classify",
                                                                          "ca", "es"].index(s) if s in
@@ -274,39 +288,39 @@ def report(rows: list[dict], args) -> str:
         rs_ok = [r for r in rs if r["baseline"]["status"] == "done"]
         if not rs:
             continue
-        sc, bc = sum(r["siac"]["cost"] for r in rs_ok), sum(r["baseline"]["cost"] for r in rs_ok)
-        w = [r["quality"]["winner"] for r in rs_ok if r["quality"]["winner"] in ("siac", "tie", "baseline")]
-        n = len(w) or 1
-        good = sum(1 for x in w if x in ("siac", "tie"))
+        sc, bc = sum(r["taskpenny"]["cost"] for r in rs_ok), sum(r["baseline"]["cost"] for r in rs_ok)
+        w = [r["quality"]["winner"] for r in rs_ok if r["quality"]["winner"] in ("taskpenny", "tie", "baseline")]
+        n = len(rs_ok) or 1  # a verdict that could not be read counts as not as good
+        good = sum(1 for x in w if x in ("taskpenny", "tie"))
         lines.append(f"| {g} | {len(rs)} | {money(sc)} | {money(bc)} | {100 * (1 - sc / bc):.0f}% | "
-                     f"{w.count('siac')} | {w.count('tie')} | {w.count('baseline')} | {100 * good / n:.0f}% | "
-                     f"{sum(r['siac']['seconds'] for r in rs_ok) / n:.1f} s | "
+                     f"{w.count('taskpenny')} | {w.count('tie')} | {w.count('baseline')} | {100 * good / n:.0f}% | "
+                     f"{sum(r['taskpenny']['seconds'] for r in rs_ok) / n:.1f} s | "
                      f"{sum(r['baseline']['seconds'] for r in rs_ok) / n:.1f} s |" if bc else
                      f"| {g} | {len(rs)} | {money(sc)} | - | - | - | - | - | - | - | - |")
     gold = [r for r in rows if r["quality"]["mode"] == "gold" and r["baseline"]["status"] == "done"]
     if gold:
-        s = sum(r["quality"]["siac"]["correct"] for r in gold)
+        s = sum(r["quality"]["taskpenny"]["correct"] for r in gold)
         b = sum(r["quality"]["baseline"]["correct"] for r in gold)
-        t = sum(r["quality"]["siac"]["total"] for r in gold)
-        sf = sum(1 for r in gold if r["quality"]["siac"]["strict"])
+        t = sum(r["quality"]["taskpenny"]["total"] for r in gold)
+        sf = sum(1 for r in gold if r["quality"]["taskpenny"]["strict"])
         bf = sum(1 for r in gold if r["quality"]["baseline"]["strict"])
-        lines += ["", f"Classification against true labels: SIAC {s}/{t}, baseline {b}/{t}. "
-                      f"Exact format asked for: SIAC {sf}/{len(gold)}, baseline {bf}/{len(gold)}."]
+        lines += ["", f"Classification against true labels: Taskpenny {s}/{t}, baseline {b}/{t}. "
+                      f"Exact format asked for: Taskpenny {sf}/{len(gold)}, baseline {bf}/{len(gold)}."]
     ok = [r for r in rows if r["baseline"]["status"] == "done" and r["quality"]["mode"] == "pairwise"]
     if ok:
-        sl = sum(len(r["siac"]["answer"]) for r in ok) / len(ok)
+        sl = sum(len(r["taskpenny"]["answer"]) for r in ok) / len(ok)
         bl = sum(len(r["baseline"]["answer"]) for r in ok) / len(ok)
-        lines += ["", f"Average answer length in judged tasks: SIAC {sl:,.0f} characters, baseline {bl:,.0f}. "
+        lines += ["", f"Average answer length in judged tasks: Taskpenny {sl:,.0f} characters, baseline {bl:,.0f}. "
                       "Judges tend to prefer longer answers, so read the win rate with this in mind."]
     failed = [r for r in rows if r["baseline"]["status"] != "done"]
     if failed:
         lines += ["", f"Baseline failed or empty on {len(failed)} tasks (left out of the table): "
                       + ", ".join(r["id"] for r in failed)]
     spent = sum(r["cost_total"] for r in rows)
-    lines += ["", f"Everything together (SIAC, baseline and judge): {money(spent)}", "",
-              "| Task | Set | SIAC | Baseline | Winner | SIAC path |", "|---|---|---|---|---|---|"]
+    lines += ["", f"Everything together (Taskpenny, baseline and judge): {money(spent)}", "",
+              "| Task | Set | Taskpenny | Baseline | Winner | Taskpenny path |", "|---|---|---|---|---|---|"]
     for r in rows:
-        s = r["siac"]
+        s = r["taskpenny"]
         path = f"{s['kind']} t{s['tier']}" + (f", {s['subtasks']} parts" if s["subtasks"] else "") + \
                (f", {s['jev_solved']} by Jev" if s["jev_solved"] else "")
         lines.append(f"| {r['id']} | {r['set']} | {money(s['cost'])} | {money(r['baseline']['cost'])} | "
@@ -325,32 +339,31 @@ async def main():
     ap.add_argument("--core", action="store_true", help="the 60 task core set: 5 per MT-Bench category, "
                                                          "5 hard, 5 multi, 5 classify, 3 ca, 2 es (seeded)")
     ap.add_argument("--parallel", type=int, default=2)
-    ap.add_argument("--max-cost", type=float, default=0.30, help="SIAC budget per task, USD")
+    ap.add_argument("--max-cost", type=float, default=0.30, help="Taskpenny budget per task, USD")
     ap.add_argument("--reserve", type=float, default=None,
-                    help="worst case per task for the guard, USD (default: SIAC's --max-cost plus 0.25)")
+                    help="worst case per task for the guard, USD (default: Taskpenny's --max-cost plus 0.25)")
     ap.add_argument("--total-budget", type=float, default=1.0, help="stop starting tasks after this, USD")
     ap.add_argument("--baseline", default=None, help="default: the catalog baseline")
     ap.add_argument("--baseline-tokens", type=int, default=16000)
     ap.add_argument("--patience", type=int, default=2, help="when the baseline is refused (429), wait 30 s and "
                                                              "try again this many times")
     ap.add_argument("--judge", default="google/gemini-3.1-pro-preview")
-    ap.add_argument("--ceiling", help="cap SIAC at this model (and use it as the baseline unless --baseline says)")
+    ap.add_argument("--ceiling", help="cap Taskpenny at this model (and use it as the baseline unless --baseline says)")
     ap.add_argument("--judge-reasoning", default="low")
     ap.add_argument("--resume", help="a results .jsonl: skip the tasks it already has and append to it")
     ap.add_argument("--seed", type=int, default=2026)
-    ap.add_argument("--reuse-siac", help="a results .jsonl: take SIAC's answers from it instead of running SIAC again")
+    ap.add_argument("--reuse-taskpenny", help="a results .jsonl: take Taskpenny's answers from it instead of "
+                                              "running Taskpenny again")
     ap.add_argument("--reuse-baseline", help="a results .jsonl: take the baseline's answers from it (same model)")
     args = ap.parse_args()
     if args.reserve is None:
-        args.reserve = args.max_cost + 0.25  # SIAC's own cap, plus a long baseline answer and the judge
+        args.reserve = args.max_cost + 0.25  # Taskpenny's own cap, plus a long baseline answer and the judge
 
     args.reuse, args.reuse_base = {}, {}
-    if args.reuse_siac:
-        for line in Path(args.reuse_siac).read_text(encoding="utf-8").splitlines():
-            if line:
-                r = json.loads(line)
-                if r["siac"]["status"] == "done":
-                    args.reuse[r["id"]] = r["siac"] | {"reused_from": Path(args.reuse_siac).name}
+    if args.reuse_taskpenny:
+        for r in read_results(args.reuse_taskpenny):
+            if r["taskpenny"]["status"] == "done":
+                args.reuse[r["id"]] = r["taskpenny"] | {"reused_from": Path(args.reuse_taskpenny).name}
     tasks = [json.loads(line) for line in Path(args.tasks).read_text(encoding="utf-8").splitlines() if line]
     if args.sets:
         keep = set(args.sets.split(","))
@@ -366,20 +379,18 @@ async def main():
         tasks = tasks[: args.limit]
     if args.ceiling:
         import os
-        os.environ["SIAC_CEILING"] = args.ceiling
+        os.environ["TASKPENNY_CEILING"] = args.ceiling
     catalog = Catalog.load()
     args.baseline = args.baseline or catalog.baseline
     if args.reuse_baseline:
-        for line in Path(args.reuse_baseline).read_text(encoding="utf-8").splitlines():
-            if line:
-                r = json.loads(line)
-                same = r["baseline"].get("model", "").split("/")[-1] == args.baseline.split("/")[-1]
-                if r["baseline"]["status"] == "done" and same:
-                    args.reuse_base[r["id"]] = r["baseline"] | {"reused_from": Path(args.reuse_baseline).name}
+        for r in read_results(args.reuse_baseline):
+            same = r["baseline"].get("model", "").split("/")[-1] == args.baseline.split("/")[-1]
+            if r["baseline"]["status"] == "done" and same:
+                args.reuse_base[r["id"]] = r["baseline"] | {"reused_from": Path(args.reuse_baseline).name}
     if args.dry_run:
         gw = SimulatedGateway(catalog, latency=(0, 0.01))
     else:
-        from siac.providers import connect
+        from taskpenny.providers import connect
         gw, catalog = connect(catalog)
     RESULTS.mkdir(exist_ok=True)
     if args.resume:
@@ -407,7 +418,7 @@ async def main():
                 budget.release(args.reserve, used)
             with jl.open("a", encoding="utf-8") as f:
                 f.write(json.dumps(r, ensure_ascii=False) + "\n")
-            print(f"{r['id']}: SIAC ${r['siac']['cost']:.4f} ({r['siac']['kind']} t{r['siac']['tier']}) · baseline "
+            print(f"{r['id']}: Taskpenny ${r['taskpenny']['cost']:.4f} ({r['taskpenny']['kind']} t{r['taskpenny']['tier']}) · baseline "
                   f"${r['baseline']['cost']:.4f} {r['baseline']['status']} · {r['quality']['winner']}"
                   f"  (total ${budget.spent:.3f})", flush=True)
             return r

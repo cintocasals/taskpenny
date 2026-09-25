@@ -1,6 +1,6 @@
 """The planner: a strong model that turns one request into a small set of well defined sub-tasks.
 
-Planning quality is the bottleneck of task decomposition, so this is where SIAC spends on a strong model.
+Planning quality is the bottleneck of task decomposition, so this is where Taskpenny spends on a strong model.
 The planner writes decision sub-tasks (choose / yes-no / score) as closed questions so Jev can solve them.
 """
 
@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 
 from .gateway import GatewayLike, Usage
 
-SYSTEM = """You are the planner of SIAC, a system that splits a request into sub-tasks so that each one can be
+SYSTEM = """You are the planner of Taskpenny, a system that splits a request into sub-tasks so that each one can be
 done by the cheapest AI model able to do it well, and then combined into one answer.
 
 Write a plan as JSON, nothing else:

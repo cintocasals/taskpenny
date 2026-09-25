@@ -21,15 +21,15 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: pip install -e ".[dev]"
       - run: pytest -q
-      - run: siac demo --quiet   # the whole flow without a key
+      - run: taskpenny demo --quiet   # the whole flow without a key
 
   docker:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t siac .
+      - run: docker build -t taskpenny .
       - run: |
-          docker run -d --name siac -p 8765:8765 siac
+          docker run -d --name taskpenny -p 8765:8765 taskpenny
           sleep 5
           curl -sf http://127.0.0.1:8765/v1/chat/completions -H 'Content-Type: application/json' \
-            -d '{"model":"siac","messages":[{"role":"user","content":"Hello"}]}' | grep -q chat.completion
+            -d '{"model":"taskpenny","messages":[{"role":"user","content":"Hello"}]}' | grep -q chat.completion

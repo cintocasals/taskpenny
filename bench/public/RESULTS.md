@@ -1,20 +1,23 @@
 # Public benchmark results · 25 September 2026
 
-SIAC against **Claude Sonnet 5** answering every task on its own, on 143 tasks (142 compared: the baseline
+Taskpenny against **Claude Sonnet 5** answering every task on its own, on 143 tasks (142 compared: the baseline
 failed on one). Judge: **Gemini 3.1 Pro**, from a third provider, comparing each pair twice with the order swapped.
 Costs are the ones Vercel AI Gateway reported for each call. Code: commit `ada421c`.
 
+Taskpenny was called SIAC when these runs were made, so the raw files use that name; the scripts read them as
+they are.
+
 ## In one paragraph
 
-On everyday requests, which were 103 of the 142 tasks, SIAC cost **93% less** than Sonnet 5 and its answer was
+On everyday requests, which were 103 of the 142 tasks, Taskpenny cost **93% less** than Sonnet 5 and its answer was
 **as good or better in 76%** of them. Labelling customer messages cost 98% less with the same accuracy (96 of 100
-right on both sides). On hard requests SIAC cost more than Sonnet 5: it sends critical tasks to Claude Opus, a
+right on both sides). On hard requests Taskpenny cost more than Sonnet 5: it sends critical tasks to Claude Opus, a
 stronger and dearer model (those answers never lost to Sonnet's), and splitting requests into parts did not pay
-off at advanced level. Over the whole set SIAC cost 14% less and was as good or better in 76% of the tasks.
+off at advanced level. Over the whole set Taskpenny cost 14% less and was as good or better in 76% of the tasks.
 
-## By the route SIAC chose
+## By the route Taskpenny chose
 
-| Tasks | n | SIAC | Sonnet 5 alone | SIAC cost | As good or better | Wins / ties / losses | Time (SIAC / Sonnet) |
+| Tasks | n | Taskpenny | Sonnet 5 alone | Taskpenny cost | As good or better | Wins / ties / losses | Time (Taskpenny / Sonnet) |
 |---|---|---|---|---|---|---|---|
 | Basic and standard (tier 1-2), one model | 103 | $0.046 | $0.684 | **93% less** | **76%** | 17 / 61 / 24 | 4.4 s / 7.7 s |
 | Advanced (tier 3), one model | 16 | $0.221 | $0.252 | **12% less** | **69%** | 3 / 8 / 5 | 14.9 s / 15.9 s |
@@ -23,7 +26,7 @@ off at advanced level. Over the whole set SIAC cost 14% less and was as good or 
 
 ## By set
 
-| Tasks | n | SIAC | Sonnet 5 alone | SIAC cost | As good or better | Wins / ties / losses | Time (SIAC / Sonnet) |
+| Tasks | n | Taskpenny | Sonnet 5 alone | Taskpenny cost | As good or better | Wins / ties / losses | Time (Taskpenny / Sonnet) |
 |---|---|---|---|---|---|---|---|
 | **All** | 142 | $1.160 | $1.353 | **14% less** | **76%** | 26 / 82 / 33 | 9.7 s / 10.8 s |
 | MT-Bench (8 categories) | 80 | $0.235 | $0.636 | **63% less** | **80%** | 16 / 48 / 16 | 6.2 s / 9.3 s |
@@ -33,51 +36,51 @@ off at advanced level. Over the whole set SIAC cost 14% less and was as good or 
 | Catalan (ours) | 14 | $0.160 | $0.101 | **1.6x as much** | **43%** | 3 / 3 / 8 | 11.2 s / 11.7 s |
 | Spanish (ours) | 14 | $0.285 | $0.168 | **1.7x as much** | **79%** | 1 / 10 / 2 | 17.2 s / 13.2 s |
 
-Labelling against the true labels: SIAC 96 of 100, Sonnet 5 96 of 100.
+Labelling against the true labels: Taskpenny 96 of 100, Sonnet 5 96 of 100.
 One judge verdict could not be read (es08); it counts as not as good.
 
 ## Tuning: seen and unseen tasks
 
-A first run on a 60 task core showed SIAC 66% cheaper and as good or better in 68%. Two general changes
+A first run on a 60 task core showed Taskpenny 66% cheaper and as good or better in 68%. Two general changes
 followed (fuller answers with key steps, and tier 2 at least for maths and code), and the whole set was run
 again. The 82 tasks outside the core were never looked at while tuning.
 
-| Tasks | n | SIAC | Sonnet 5 alone | SIAC cost | As good or better |
+| Tasks | n | Taskpenny | Sonnet 5 alone | Taskpenny cost | As good or better |
 |---|---|---|---|---|---|
 | Core 60, before the changes | 60 | $0.202 | $0.591 | 66% less | 68% |
 | Core 60, after | 60 | $0.301 | $0.591 | 49% less | 77% |
 | The 82 unseen tasks, after | 82 | $0.860 | $0.762 | 1.1x as much | 76% |
 
 Quality held on unseen tasks (76% against 77% on the core). Cost did not: the unseen tasks hold most of the hard,
-Catalan and Spanish requests, where SIAC used Opus or split the work.
+Catalan and Spanish requests, where Taskpenny used Opus or split the work.
 
 ## How to read it
 
 - **Ties dominate.** Most pairs were judged equal; "as good or better" counts wins and ties.
-- **The judge likes longer answers.** On average SIAC wrote 2,644 characters and Sonnet 5 2,206. Many of SIAC's
+- **The judge likes longer answers.** On average Taskpenny wrote 2,644 characters and Sonnet 5 2,206. Many of Taskpenny's
   losses on basic tasks were short, correct answers against longer ones with extra explanation.
 - **A person checked 20 pairs blind.** The project's author voted on 20 pairs from the 60 task core without knowing
-  which answer was SIAC's. He found most pairs hard to tell apart. He rated SIAC as good or better in 18 of 20, where
-  the judge said 14, and the two gave the same verdict on 6. In the four pairs where they disagreed outright, SIAC's
-  answer was the short one: the judge preferred Sonnet's longer answer, the author preferred SIAC's because it did
+  which answer was Taskpenny's. He found most pairs hard to tell apart. He rated Taskpenny as good or better in 18 of 20, where
+  the judge said 14, and the two gave the same verdict on 6. In the four pairs where they disagreed outright, Taskpenny's
+  answer was the short one: the judge preferred Sonnet's longer answer, the author preferred Taskpenny's because it did
   only what was asked. Twenty votes from one person are too few to correct the judge, so the figures here are the
   judge's.
-- **Sonnet 5 is a strong, mid-priced baseline.** SIAC's catalog goes above it (Claude Opus for critical tasks), so
-  on critical tasks SIAC spends more by design. Against Opus as the baseline the picture would change, but Opus
+- **Sonnet 5 is a strong, mid-priced baseline.** Taskpenny's catalog goes above it (Claude Opus for critical tasks), so
+  on critical tasks Taskpenny spends more by design. Against Opus as the baseline the picture would change, but Opus
   refused most calls on the day.
-- **Spend.** SIAC $1.16, Sonnet 5 $0.76 for the 82 new tasks (the 60 core answers were reused), judge $1.86.
+- **Spend.** Taskpenny $1.16, Sonnet 5 $0.76 for the 82 new tasks (the 60 core answers were reused), judge $1.86.
   Vercel billed $0.46 more than the runner recorded; the likely cause, calls that timed out and were sent again,
   is fixed, and the runner now checks the real balance.
 
 ## Checked on 50 new tasks, after two changes
 
-Two changes followed this report: a **ceiling** (SIAC's strongest model can be set to the model you would use
+Two changes followed this report: a **ceiling** (Taskpenny's strongest model can be set to the model you would use
 anyway, here Sonnet 5) and **splitting only when it pays** (Jev gates every part first; if the parts would not
-go to clearly cheaper models, the request is done in one go). They were checked on 50 tasks SIAC had never seen:
+go to clearly cheaper models, the request is done in one go). They were checked on 50 tasks Taskpenny had never seen:
 40 more Arena-Hard prompts and 10 new four-part requests (`tasks-holdout.jsonl`, same sources and seeds recorded),
 against Sonnet 5 with the same judge. Code: commit `f567a7c`.
 
-| Tasks | n | SIAC | Sonnet 5 alone | SIAC cost | As good or better | Wins / ties / losses |
+| Tasks | n | Taskpenny | Sonnet 5 alone | Taskpenny cost | As good or better | Wins / ties / losses |
 |---|---|---|---|---|---|---|
 | **All 50 new tasks** | 50 | $0.446 | $0.955 | **53% less** | **82%** | 11 / 30 / 9 |
 | Arena-Hard (new sample) | 40 | $0.400 | $0.840 | **52% less** | **80%** | 10 / 22 / 8 |
@@ -88,14 +91,14 @@ against Sonnet 5 with the same judge. Code: commit `f567a7c`.
 | Split into parts | 6 | $0.030 | $0.066 | 54% less | 83% | 1 / 4 / 1 |
 
 On Arena-Hard, where the first run (14 other prompts, no ceiling) cost 1.3 times as much with 64% as good or
-better, SIAC now costs about half and is as good or better in 80%. The samples differ, so read this as a direction,
+better, Taskpenny now costs about half and is as good or better in 80%. The samples differ, so read this as a direction,
 not a precise gain. Five of eleven plans were dropped because splitting would not have paid. Vercel billed
 exactly what the runner recorded ($2.27 in total, judge included). Raw results:
 `results/2026-09-25-holdout50.jsonl`.
 
 ## What we are changing next
 
-1. **A ceiling.** Done (`SIAC_CEILING`, `--ceiling`); checked above.
+1. **A ceiling.** Done (`TASKPENNY_CEILING`, `--ceiling`); checked above.
 2. **Split only when it pays.** Done; checked above.
 3. **Catalan.** The weakest set (43%): answers from the cheapest models were thin, and one showed an English
    line. Labels from Jev now appear in the request's language.

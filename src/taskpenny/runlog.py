@@ -24,7 +24,7 @@ def load(path: str | Path) -> dict:
 def to_markdown(run: dict) -> str:
     """A readable report of a run: request, answer, who did each task and the cost receipt."""
     r = run.get("receipt", {})
-    lines = [f"# SIAC run {run.get('id', '')}", "", f"**Status:** {run.get('status')} · "
+    lines = [f"# Taskpenny run {run.get('id', '')}", "", f"**Status:** {run.get('status')} · "
              f"**Time:** {run.get('duration_s', 0)} s · **Cost:** ${r.get('total_cost', 0):.5f}", "",
              "## Request", "", run.get("request", ""), "", "## Answer", "", run.get("answer", ""), "",
              "## Task tree", "", "| Task | Title | Done by | Tier | Cost |", "|---|---|---|---|---|"]

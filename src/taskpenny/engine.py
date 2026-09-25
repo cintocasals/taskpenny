@@ -1,4 +1,4 @@
-"""The SIAC loop: gate -> (plan -> sub-tasks back to the gate) or (route -> execute -> verify -> repair)
+"""The Taskpenny loop: gate -> (plan -> sub-tasks back to the gate) or (route -> execute -> verify -> repair)
 -> aggregate -> final check. Every step emits an event, so the process can be shown live."""
 
 from __future__ import annotations
@@ -539,7 +539,7 @@ class Engine:
     def _receipt(self, request: str, answer: str) -> dict:
         base = self.catalog.get(self.catalog.baseline)
         # The strong model would also spend hidden reasoning tokens: scale the answer length by the ratio of
-        # billed output to visible output that SIAC's own workers showed in this run (never below 1).
+        # billed output to visible output that Taskpenny's own workers showed in this run (never below 1).
         factor = max(1.0, self.work_out / self.work_visible) if self.work_visible else 1.0
         tin, tout = estimate_tokens(request) + 40, int(estimate_tokens(answer) * factor)
         baseline_cost = base.cost(tin, tout)
@@ -555,8 +555,8 @@ class Engine:
             "baseline": {
                 "model": base.id,
                 "estimated_cost": round(baseline_cost, 6),
-                "method": "one call to the baseline model with this request and an answer as long as SIAC's, "
-                          "scaled by the hidden reasoning SIAC's own models used in this run, with no retries",
+                "method": "one call to the baseline model with this request and an answer as long as Taskpenny's, "
+                          "scaled by the hidden reasoning Taskpenny's own models used in this run, with no retries",
                 "reasoning_factor": round(factor, 2),
             },
             "saving_pct": round(saving, 1) if saving is not None else None,

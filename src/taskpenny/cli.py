@@ -1,4 +1,4 @@
-"""Command line: `siac run "..."`, `siac demo`, `siac models`."""
+"""Command line: `taskpenny run "..."`, `taskpenny demo`, `taskpenny models`."""
 
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ class Printer:
         cost = f"  {self.c('$%.5f' % ev['cost'], '2')}" if ev.get("cost") else ""
         typ = ev["type"]
         if typ == "run_started":
-            line = f"SIAC · profile {ev['profile']} · budget ${ev['limits']['max_cost']:.2f}"
+            line = f"Taskpenny · profile {ev['profile']} · budget ${ev['limits']['max_cost']:.2f}"
         elif typ == "gate":
             tier = f"tier {ev['tier']}" + (" (raised: Jev unsure)" if ev.get("raised") else "")
             line = f"gate  {tier} · {ev['task_type']} · answer {ev['answer_type']} · split {ev['split']:.2f}"
@@ -103,7 +103,7 @@ def _read_prompt(args) -> str:
     if args.prompt == "-" or (not args.prompt and not sys.stdin.isatty()):
         return sys.stdin.read()
     if not args.prompt:
-        sys.exit("siac: give a prompt, a --file, or pipe text in")
+        sys.exit("taskpenny: give a prompt, a --file, or pipe text in")
     return args.prompt
 
 
@@ -169,9 +169,9 @@ def _models(args) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(prog="siac", description="Split a big prompt into small tasks and send each one "
+    p = argparse.ArgumentParser(prog="taskpenny", description="Split a big prompt into small tasks and send each one "
                                 "to the cheapest model that can do it well.")
-    p.add_argument("--version", action="version", version=f"siac {__version__}")
+    p.add_argument("--version", action="version", version=f"taskpenny {__version__}")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     def run_opts(sp):
@@ -180,8 +180,8 @@ def main(argv: list[str] | None = None) -> int:
         sp.add_argument("--max-depth", type=int, default=3)
         sp.add_argument("--no-split", action="store_true", help="route the whole request to one model")
         sp.add_argument("--models", help="path to a models.yaml of your own")
-        sp.add_argument("--ceiling", help="the strongest model SIAC may use, for example the one you use today")
-        sp.add_argument("--save-dir", default=os.environ.get("SIAC_RUNS_DIR", "runs"), help="where runs are saved")
+        sp.add_argument("--ceiling", help="the strongest model Taskpenny may use, for example the one you use today")
+        sp.add_argument("--save-dir", default=os.environ.get("TASKPENNY_RUNS_DIR", "runs"), help="where runs are saved")
         sp.add_argument("--json", action="store_true", help="print the whole run as JSON")
         sp.add_argument("--quiet", action="store_true", help="only the answer and the receipt")
 
@@ -190,7 +190,7 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--file", help="read the request from a file")
     r.add_argument("--dry-run", action="store_true", help="simulated models: no key, no cost")
     run_opts(r)
-    d = sub.add_parser("demo", help="see SIAC work on a sample request, without a key")
+    d = sub.add_parser("demo", help="see Taskpenny work on a sample request, without a key")
     run_opts(d)
     u = sub.add_parser("ui", help="open the live task tree in your browser")
     u.add_argument("--port", type=int, default=8765)
@@ -198,21 +198,21 @@ def main(argv: list[str] | None = None) -> int:
     u.add_argument("--dry-run", action="store_true", help="simulated models by default")
     u.add_argument("--no-browser", action="store_true")
     u.add_argument("--models", help="path to a models.yaml of your own")
-    u.add_argument("--ceiling", help="the strongest model SIAC may use")
-    u.add_argument("--save-dir", default=os.environ.get("SIAC_RUNS_DIR", "runs"))
+    u.add_argument("--ceiling", help="the strongest model Taskpenny may use")
+    u.add_argument("--save-dir", default=os.environ.get("TASKPENNY_RUNS_DIR", "runs"))
     s = sub.add_parser("serve", help="OpenAI-compatible API (and the live page) for your tools")
     s.add_argument("--port", type=int, default=8765)
     s.add_argument("--host", default="127.0.0.1")
     s.add_argument("--dry-run", action="store_true", help="simulated models for every request")
-    s.add_argument("--api-key", default=os.environ.get("SIAC_API_KEY"),
+    s.add_argument("--api-key", default=os.environ.get("TASKPENNY_API_KEY"),
                    help="require this key from clients (Authorization: Bearer ...)")
     s.add_argument("--models", help="path to a models.yaml of your own")
-    s.add_argument("--ceiling", help="the strongest model SIAC may use")
-    s.add_argument("--save-dir", default=os.environ.get("SIAC_RUNS_DIR", "runs"))
+    s.add_argument("--ceiling", help="the strongest model Taskpenny may use")
+    s.add_argument("--save-dir", default=os.environ.get("TASKPENNY_RUNS_DIR", "runs"))
     x = sub.add_parser("export", help="turn a saved run into a Markdown report")
     x.add_argument("run", help="path to a run .json file")
     x.add_argument("-o", "--output", help="write to this file instead of the screen")
-    dr = sub.add_parser("doctor", help="check your keys and which models SIAC can reach (no tokens spent)")
+    dr = sub.add_parser("doctor", help="check your keys and which models Taskpenny can reach (no tokens spent)")
     dr.add_argument("--models", help="path to a models.yaml of your own")
     m = sub.add_parser("models", help="show the model catalog")
     m.add_argument("--models", help="path to a models.yaml of your own")
@@ -220,7 +220,7 @@ def main(argv: list[str] | None = None) -> int:
 
     args = p.parse_args(argv)
     if getattr(args, "ceiling", None):
-        os.environ["SIAC_CEILING"] = args.ceiling  # every catalog this process loads is capped
+        os.environ["TASKPENNY_CEILING"] = args.ceiling  # every catalog this process loads is capped
     if args.cmd == "models":
         return _models(args)
     if args.cmd == "doctor":
@@ -247,7 +247,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return asyncio.run(_run(args, prompt))
     except GatewayError as e:
-        print(f"siac: {e}", file=sys.stderr)
+        print(f"taskpenny: {e}", file=sys.stderr)
         return 1
     except KeyboardInterrupt:
         return 130

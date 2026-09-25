@@ -1,6 +1,6 @@
 # Development results (v0.1, not the public benchmark)
 
-These numbers come from 42 requests we wrote ourselves while building SIAC (14 in English, 14 in Catalan,
+These numbers come from 42 requests we wrote ourselves while building Taskpenny (14 in English, 14 in Catalan,
 14 in Spanish; `bench/dev_cases.jsonl`). They were run live through Vercel AI Gateway on 2026-09-25 with the
 settings in this repository. They tell us whether the router behaves as designed. They are **not** a claim
 about answer quality: that is what the public benchmark (roadmap step 3) will measure, with outside task
@@ -14,13 +14,13 @@ sets and blind grading.
 | Answer type (text, choice, yes/no, score) matches | 41 of 42 |
 | Tier chosen by Jev matches ours exactly | 37 of 42 (4 higher, 1 lower) |
 | Runs finished | 41 done, 1 partial (it hit its $0.15 budget cap, as designed) |
-| Total cost with SIAC | $0.56 |
+| Total cost with Taskpenny | $0.56 |
 | Estimated cost with one strong model (Claude Opus 5.5) | $0.95 |
 | Saving | 41% |
 
 By kind of request:
 
-| Kind | Cases | SIAC | One strong model (estimate) | Saving | Average time |
+| Kind | Cases | Taskpenny | One strong model (estimate) | Saving | Average time |
 |---|---|---|---|---|---|
 | Tier 1 (basic) | 16 | $0.0006 | $0.0108 | 95% | 2.6 s |
 | Tier 2 (standard) | 12 | $0.0106 | $0.0439 | 76% | 7.5 s |
@@ -37,7 +37,7 @@ By kind of request:
 - **Split requests save about 40%** today. Planning is where it pays to spend, so critical requests get a
   strong planner; parts go to the cheapest model that can do each one, and choice parts go to Jev.
 - **The one-model figure is an estimate**: the same request sent once to the baseline model, with an answer as
-  long as SIAC's, scaled by the hidden reasoning SIAC's own models used, and no retries. A real run of the
+  long as Taskpenny's, scaled by the hidden reasoning Taskpenny's own models used, and no retries. A real run of the
   baseline can cost more or less. The public benchmark runs the baseline for real.
 
 ## What we changed because of these runs
@@ -59,7 +59,7 @@ Our first live runs cost too much. We found five causes and fixed them before th
 - The dev set is small and written by us, so it fits what we built. The public benchmark will use outside
   task sets.
 - Access to some frontier models is limited at times (the gateway answers "no access to this model at this
-  time"); SIAC then falls back as described above.
+  time"); Taskpenny then falls back as described above.
 - Two cases disagreed with our labels: six invoices to classify and total were done in one call at tier 1
   instead of being split (the answer was right, and cheaper), and a choice between three hosting offers was
   answered as a written analysis at tier 3.

@@ -1,6 +1,6 @@
-# SIAC public benchmark
+# Taskpenny public benchmark
 
-Does SIAC give answers as good as one strong model, for less money? This folder answers that with public tasks,
+Does Taskpenny give answers as good as one strong model, for less money? This folder answers that with public tasks,
 real costs and a method anyone can rerun.
 
 ## The tasks
@@ -24,7 +24,7 @@ source rows. The result files in `results/` include the task prompts, under the 
 
 For every task:
 
-1. **SIAC** answers it with its normal settings (budget cap $0.30 per task).
+1. **Taskpenny** answers it with its normal settings (budget cap $0.30 per task).
 2. **The baseline** answers it in one call with its default settings (`--baseline`; the catalog's baseline if not
    given). The first published run used Claude Sonnet 5, because Claude Opus refused most calls that day. Its
    cost is the real one reported by the gateway, not an estimate.
@@ -36,7 +36,7 @@ For every task:
      reference answer. The judge prompt is adapted from MT-Bench's pairwise prompt.
 4. **A person** reviews a blind random sample of 20 pairs, to check that the judge agrees with people.
 
-The headline is two numbers per set: how much less SIAC spent, and in how many tasks its answer was as good
+The headline is two numbers per set: how much less Taskpenny spent, and in how many tasks its answer was as good
 as or better than the baseline's.
 
 ## Run it
@@ -50,11 +50,12 @@ python bench/public/summarize.py bench/results/public-live-<time>.jsonl         
 ```
 
 Results go to `bench/results/public-*.jsonl` (one line per task, with both answers and every judge note) and a
-Markdown report next to it. `--resume <file>` continues an interrupted run; `--reuse-siac` and `--reuse-baseline`
+Markdown report next to it. `--resume <file>` continues an interrupted run; `--reuse-taskpenny` and `--reuse-baseline`
 take one side's answers from an earlier run instead of paying for them again. With a Vercel key the budget guard
 also watches the real balance, and the report says what Vercel billed against what the runner recorded.
 
 `python bench/public/review.py pick <results>` draws the blind sample of 20 pairs for a person to judge, and
 `review.py score` compares that person's votes with the judge.
 
-The published results are in [RESULTS.md](RESULTS.md), with the raw files in `results/`.
+The published results are in [RESULTS.md](RESULTS.md), with the raw files in `results/` (made when Taskpenny was
+called SIAC; the scripts read them as they are).

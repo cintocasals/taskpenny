@@ -1,27 +1,27 @@
 # docker compose up   ->  page and API on http://127.0.0.1:8765 (OpenAI base URL: http://127.0.0.1:8765/v1)
 # Keys come from your shell or an .env file next to this one; they are never baked into the image.
 services:
-  siac:
+  taskpenny:
     build: .
     ports:
       - "127.0.0.1:8765:8765"
     environment:
       - AI_GATEWAY_API_KEY
-      - SIAC_API_KEY
+      - TASKPENNY_API_KEY
       - ANTHROPIC_API_KEY
       - OPENAI_API_KEY
       - GEMINI_API_KEY
-      - SIAC_DIRECT
-      - SIAC_LOCAL
+      - TASKPENNY_DIRECT
+      - TASKPENNY_LOCAL
       - OLLAMA_HOST=http://ollama:11434
     volumes:
-      - siac-runs:/data
+      - taskpenny-runs:/data
   # Optional free local models for basic tasks: uncomment, then `docker compose exec ollama ollama pull qwen3:4b`
-  # and set SIAC_LOCAL=qwen3:4b.
+  # and set TASKPENNY_LOCAL=qwen3:4b.
   # ollama:
   #   image: ollama/ollama
   #   volumes:
   #     - ollama:/root/.ollama
 volumes:
-  siac-runs:
+  taskpenny-runs:
   # ollama:

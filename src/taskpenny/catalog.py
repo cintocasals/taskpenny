@@ -56,19 +56,19 @@ class Catalog:
     # ------------------------------------------------------------------ loading
     @classmethod
     def load(cls, path: str | Path | None = None, ceiling: str | None = None) -> "Catalog":
-        """The catalog from models.yaml. `ceiling` (or SIAC_CEILING) caps it at a model: see with_ceiling."""
+        """The catalog from models.yaml. `ceiling` (or TASKPENNY_CEILING) caps it at a model: see with_ceiling."""
         if path is None:
-            text = resources.files("siac").joinpath("models.yaml").read_text(encoding="utf-8")
+            text = resources.files("taskpenny").joinpath("models.yaml").read_text(encoding="utf-8")
             source = "built-in models.yaml"
         else:
             text = Path(path).read_text(encoding="utf-8")
             source = str(path)
         cat = cls.from_dict(yaml.safe_load(text), source=source)
-        ceiling = ceiling if ceiling is not None else os.environ.get("SIAC_CEILING", "")
+        ceiling = ceiling if ceiling is not None else os.environ.get("TASKPENNY_CEILING", "")
         return cat.with_ceiling(ceiling) if ceiling else cat
 
     def with_ceiling(self, model_id: str) -> "Catalog":
-        """Make `model_id` the strongest model SIAC may use, usually the model you would otherwise use for
+        """Make `model_id` the strongest model Taskpenny may use, usually the model you would otherwise use for
         everything. Dearer models leave the catalog, the ceiling model covers every tier from its own up to 4, and
         receipts compare with it."""
         try:

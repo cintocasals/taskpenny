@@ -47,7 +47,7 @@ SOURCES = {
                   "d12d6e3bc4c3103966ae786dc435913c0c563dfa328f5a3646d0e62cfeeb474d"),
 }
 LICENSE = {"mtbench": "Apache-2.0", "arenahard": "Apache-2.0", "dolly": "CC-BY-SA-3.0",
-           "banking77": "CC-BY-4.0", "siac": "MIT"}
+           "banking77": "CC-BY-4.0", "taskpenny": "MIT"}
 
 
 def fetch(name: str) -> bytes:
@@ -170,7 +170,7 @@ def ours() -> list[dict]:
         if c["lang"] in ("ca", "es"):
             out.append({"id": c["id"], "set": c["lang"], "lang": c["lang"], "prompt": c["prompt"],
                         "category": c["expect"]["type"], "judge": "pairwise", "expect": c["expect"],
-                        "source": {"dataset": "SIAC dev cases", "id": c["id"], "license": LICENSE["siac"]}})
+                        "source": {"dataset": "Taskpenny dev cases", "id": c["id"], "license": LICENSE["taskpenny"]}})
     return out
 
 

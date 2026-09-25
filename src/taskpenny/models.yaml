@@ -1,11 +1,11 @@
-# SIAC model catalog.
+# Taskpenny model catalog.
 #
 # Prices are USD per million tokens, as listed by Vercel AI Gateway
 # (GET https://ai-gateway.vercel.sh/v1/models) on 2026-09-25.
-# Run `siac models --check` to compare them with the live catalog.
+# Run `taskpenny models --check` to compare them with the live catalog.
 #
 # How the router uses this file: for every task, Jev decides the tier (1 to 4)
-# and the task type. SIAC then picks the CHEAPEST model below that lists that
+# and the task type. Taskpenny then picks the CHEAPEST model below that lists that
 # tier and that you have a key for (on a price tie, the one listed first).
 # To add a model, copy an entry and set its tiers. Tier assignments are a
 # starting point: the public benchmark calibrates them.
@@ -121,7 +121,7 @@ models:
     context: 1050000
     vision: true
 
-# Profiles limit which providers the router may use. `siac run --profile anthropic`.
+# Profiles limit which providers the router may use. `taskpenny run --profile anthropic`.
 profiles:
   all: [openai, alibaba, google, deepseek, anthropic]
   anthropic: [anthropic]

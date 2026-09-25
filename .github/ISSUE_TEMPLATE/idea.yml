@@ -1,5 +1,5 @@
 name: Idea
-description: Something SIAC could do better or new.
+description: Something Taskpenny could do better or new.
 labels: [idea]
 body:
   - type: textarea

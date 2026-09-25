@@ -3,11 +3,11 @@
 `connect()` looks at the keys you have and returns a gateway plus the catalog it can actually use:
 
 - AI_GATEWAY_API_KEY set: everything goes through Vercel, and Jev makes the decisions. Providers listed in
-  SIAC_DIRECT (for example "anthropic,openai") go straight to their own API with their own key instead.
+  TASKPENNY_DIRECT (for example "anthropic,openai") go straight to their own API with their own key instead.
 - No Vercel key, but provider keys (ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, DEEPSEEK_API_KEY,
   DASHSCOPE_API_KEY): each model goes to its provider, only those providers are used, and the cheapest
   basic model you can reach answers the decision questions in Jev's place (less sharp, still cheap).
-- SIAC_DECIDER=llm forces that stand-in decider even with a Vercel key (to compare it with Jev).
+- TASKPENNY_DECIDER=llm forces that stand-in decider even with a Vercel key (to compare it with Jev).
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ class Provider:
     env: tuple[str, ...]          # key variables, first found wins
     base_url: str
     style: str                    # "openai" or "anthropic"
-    reasoning: dict[str, Any]     # how SIAC's "off"/"low" map to this API; empty: not sent
+    reasoning: dict[str, Any]     # how Taskpenny's "off"/"low" map to this API; empty: not sent
 
 
 PROVIDERS: dict[str, Provider] = {
@@ -132,7 +132,7 @@ class DirectClient:
             body["response_format"] = {"type": "json_object"}
         if effort and "haiku" not in m.id:
             body["reasoning_effort"] = effort
-        headers = {"Authorization": f"Bearer {self.key}", "User-Agent": f"siac/{__version__}"}
+        headers = {"Authorization": f"Bearer {self.key}", "User-Agent": f"taskpenny/{__version__}"}
         url = self.base_url + "/chat/completions"
         data, ms = await self._send(url, body, headers, ("response_format", "reasoning_effort", "temperature"))
         choice = (data.get("choices") or [{}])[0]
@@ -157,7 +157,7 @@ class DirectClient:
             body["temperature"] = temperature
         if effort and "haiku" not in m.id:
             body["output_config"] = {"effort": effort}
-        headers = {"x-api-key": self.key, "anthropic-version": "2023-06-01", "User-Agent": f"siac/{__version__}"}
+        headers = {"x-api-key": self.key, "anthropic-version": "2023-06-01", "User-Agent": f"taskpenny/{__version__}"}
         data, ms = await self._send(self.base_url + "/messages", body, headers, ("output_config", "temperature"))
         text = "".join(b.get("text", "") for b in data.get("content") or [] if b.get("type") == "text")
         u = data.get("usage") or {}
@@ -297,13 +297,13 @@ class MultiGateway:
 
 
 def local_models(spec: str | None = None) -> list[Model]:
-    """Local models from SIAC_LOCAL, served by Ollama (or any OpenAI-compatible local server at OLLAMA_HOST).
+    """Local models from TASKPENNY_LOCAL, served by Ollama (or any OpenAI-compatible local server at OLLAMA_HOST).
 
-    SIAC_LOCAL="qwen3:4b,llama3.2:3b" uses those models for tier 1 tasks; "qwen3:8b@2" also for tier 2;
+    TASKPENNY_LOCAL="qwen3:4b,llama3.2:3b" uses those models for tier 1 tasks; "qwen3:8b@2" also for tier 2;
     "auto" takes every model Ollama has installed, for tier 1. They cost nothing, so they go first for their
     tiers, and Jev's checks send a weak answer on to a cloud model.
     """
-    spec = (spec if spec is not None else os.environ.get("SIAC_LOCAL", "")).strip()
+    spec = (spec if spec is not None else os.environ.get("TASKPENNY_LOCAL", "")).strip()
     if not spec:
         return []
     names = [s.strip() for s in spec.split(",") if s.strip()]
@@ -336,15 +336,15 @@ def connect(catalog: Catalog) -> tuple[Any, Catalog]:
     """The gateway to use with the keys found in the environment, and the catalog restricted to what it reaches."""
     has_vercel = bool(os.environ.get("AI_GATEWAY_API_KEY"))
     keys = {name: k for name in PROVIDERS if (k := provider_key(name))}
-    wanted = {p.strip() for p in os.environ.get("SIAC_DIRECT", "").split(",") if p.strip()}
-    force_llm = os.environ.get("SIAC_DECIDER", "").lower() == "llm"
+    wanted = {p.strip() for p in os.environ.get("TASKPENNY_DIRECT", "").split(",") if p.strip()}
+    force_llm = os.environ.get("TASKPENNY_DECIDER", "").lower() == "llm"
     local = local_models()
     if has_vercel and not wanted and not force_llm and not local:
         return Gateway(catalog=catalog), catalog  # the simple, default path
     if not has_vercel and not keys and not local:
         raise GatewayError(401, "No key found. Set AI_GATEWAY_API_KEY (one key for Jev and every model), or at "
                                 "least one provider key such as ANTHROPIC_API_KEY or OPENAI_API_KEY. "
-                                "Or run with --dry-run to see SIAC work without a key.")
+                                "Or run with --dry-run to see Taskpenny work without a key.")
     cat = catalog
     if local:
         profiles = dict(cat.profiles)
@@ -375,7 +375,7 @@ def connect(catalog: Catalog) -> tuple[Any, Catalog]:
 
 
 async def doctor(catalog: Catalog) -> list[str]:
-    """What SIAC can reach with the keys in this environment. Names of keys only, never their values."""
+    """What Taskpenny can reach with the keys in this environment. Names of keys only, never their values."""
     out = []
     has_vercel = bool(os.environ.get("AI_GATEWAY_API_KEY"))
     keys = {n: k for n in PROVIDERS if (k := provider_key(n))}

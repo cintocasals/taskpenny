@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the development cases through SIAC and compare Jev's gate with the expected answers.
+"""Run the development cases through Taskpenny and compare Jev's gate with the expected answers.
 
 Usage: python bench/run_dev.py [--dry-run] [--only en01,ca02] [--parallel 2] [--max-cost 0.10] [--total-budget 0.50]
 Each case is appended to bench/results/dev-<tag>-<time>.jsonl as soon as it ends; a Markdown summary follows.
@@ -13,9 +13,9 @@ from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 
-from siac.catalog import Catalog
-from siac.engine import Engine, Limits
-from siac.simulate import SimulatedGateway
+from taskpenny.catalog import Catalog
+from taskpenny.engine import Engine, Limits
+from taskpenny.simulate import SimulatedGateway
 
 HERE = Path(__file__).parent
 
@@ -86,7 +86,7 @@ async def main():
     if args.dry_run:
         gw = SimulatedGateway(catalog, latency=(0, 0.01))
     else:
-        from siac.providers import connect
+        from taskpenny.providers import connect
         gw, catalog = connect(catalog)
     sem = asyncio.Semaphore(args.parallel)
     out = HERE / "results"

@@ -1,4 +1,4 @@
-"""A simulated gateway for `--dry-run`: shows the whole SIAC process without a key and without spending.
+"""A simulated gateway for `--dry-run`: shows the whole Taskpenny process without a key and without spending.
 
 Answers are placeholders and decisions come from simple rules, but the flow, the events, the models chosen
 and the cost receipt (at catalog prices) are the real ones. The test suite uses it too.
