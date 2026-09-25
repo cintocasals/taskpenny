@@ -4,6 +4,11 @@
 
 > Status: work in progress, private. The core loop (v0.1) and the live page (v0.2) work; they are being measured and tuned before the public benchmark (v0.3).
 
+![SIAC splitting a launch plan into five tasks, each done by the cheapest model that can do it well](docs/siac-demo.gif)
+
+<sub>A real run replayed at 4x: five tasks across three tiers, $0.044 instead of about $0.097 with one strong model.
+To replay it yourself: `mkdir -p runs && cp docs/demo-run.json runs/ && siac ui`, then Replay.</sub>
+
 Most prompts don't need your most expensive model for every part of the job. SIAC works like a good project lead: it decides whether a request is worth splitting, breaks it into small, well defined tasks, gives each task to the cheapest model that can handle it, checks every result before moving on, and puts everything together into one answer. You watch the whole process live, and at the end you get a receipt that compares what it cost with what it would have cost to send everything to the strongest model.
 
 The decisions (split or not, which tier of model, is this result good enough) are made by [Jev](https://typesafe.ai), TypeSafe AI's decision model, which costs about 3 cents per thousand decisions. When a task is simply a choice (pick an option, answer yes or no, give a score), Jev solves it directly: no language model needed.

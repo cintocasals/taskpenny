@@ -84,6 +84,7 @@ a.ghost{color:inherit;text-decoration:none;display:inline-block}
 .receipt div{display:grid;grid-template-columns:1fr auto;gap:12px;border-bottom:1px solid var(--soft);padding:3px 0}
 .receipt .tot{font-weight:600;border-bottom:1px solid var(--ink)}
 .receipt p{font-family:var(--sans);font-size:13px;color:var(--lead);margin:8px 0 0}
+.box.rich{white-space:normal}.box.rich h1,.box.rich h2,.box.rich h3,.box.rich h4{font-size:14px;margin:10px 0 4px}.box.rich p{margin:0 0 8px}.box.rich ul,.box.rich ol{margin:0 0 8px;padding-left:18px}
 .legend{margin:0;padding:8px 14px 12px;font-size:12px;color:var(--lead);border-top:1px solid var(--soft)}
 .log{max-height:260px;overflow:auto;font-family:var(--mono);font-size:12px;padding:8px 14px}
 .log div{display:grid;grid-template-columns:52px 70px 1fr;gap:8px;padding:2px 0;border-bottom:1px solid var(--soft)}
@@ -348,7 +349,7 @@ function renderDetail(){
   if (n.attempts && n.attempts.length) h += "<dt>" + esc(L.attempts) + "</dt><dd title=\"" + esc(L.tipCheck) + "\">" + n.attempts.map(a => esc(short(a.model)) + " · " + esc(L.tierL) + " " + a.tier + " → " + a.ok_probability).join(" · ") + "</dd>";
   h += "</dl>";
   if (n.prompt) h += '<div><div class="label">' + esc(L.prompt) + '</div><div class="box">' + esc(n.prompt) + "</div></div>";
-  if (n.result) h += '<div><div class="label">' + esc(L.result) + '</div><div class="box">' + esc(n.result) + "</div></div>";
+  if (n.result) h += '<div><div class="label">' + esc(L.result) + '</div><div class="box rich">' + md(n.result) + "</div></div>";
   if (n.notes) h += '<div><div class="label">' + esc(L.notes) + '</div><div class="box">' + esc(n.notes) + "</div></div>";
   if (n.problem) h += '<div><div class="label">' + esc(L.problem) + '</div><div class="box">' + esc(n.problem) + "</div></div>";
   box.innerHTML = h;
