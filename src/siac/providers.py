@@ -266,7 +266,12 @@ class MultiGateway:
         self.catalog, self.vercel, self.direct, self.decider, self._client = catalog, vercel, direct, decider, client
 
     def route(self, model: str) -> str:
-        provider = self.catalog.get(model).provider
+        try:
+            provider = self.catalog.get(model).provider
+        except KeyError:  # a model outside the catalog (a benchmark judge, say): only Vercel can reach it
+            if self.vercel:
+                return "vercel"
+            raise GatewayError(404, f"{model} is not in the catalog and there is no Vercel key to reach it")
         if provider in self.direct:
             return provider
         if self.vercel:

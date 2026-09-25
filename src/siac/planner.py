@@ -49,7 +49,20 @@ Rules:
 
 
 class PlanError(RuntimeError):
-    pass
+    """No usable plan. `usage` holds what the failed attempts cost, so the receipt can still count it."""
+
+    def __init__(self, message: str, usage: Usage | None = None, model: str = ""):
+        super().__init__(message)
+        self.usage, self.model = usage or Usage(), model
+
+
+RESERVED_IDS = {"__proto__", "constructor", "prototype", "root"}
+
+
+def clean_id(raw: str, i: int) -> str:
+    """Sub-task ids become short, safe tokens (letters, digits, - and _), never a special name."""
+    sid = re.sub(r"[^A-Za-z0-9_-]", "_", raw.strip())[:24] or f"t{i}"
+    return f"t{i}_{sid}" if sid in RESERVED_IDS else sid
 
 
 @dataclass
@@ -90,11 +103,16 @@ def parse_plan(data: dict, max_subtasks: int) -> tuple[list[SubtaskSpec], str]:
         raise PlanError("the plan has no sub-tasks")
     subs: list[SubtaskSpec] = []
     seen: set[str] = set()
+    rename: dict[str, str] = {}
     for i, s in enumerate(raw[:max_subtasks], 1):
-        sid = str(s.get("id") or f"t{i}").strip() or f"t{i}"
+        if not isinstance(s, dict):
+            raise PlanError(f"sub-task {i} is not an object")
+        orig = str(s.get("id") or f"t{i}")
+        sid = clean_id(orig, i)
         if sid in seen:
             sid = f"{sid}_{i}"
         seen.add(sid)
+        rename.setdefault(orig, sid)
         at = str(s.get("answer_type") or "text").lower()
         dec = s.get("decision") if isinstance(s.get("decision"), dict) else None
         if at not in ("text", "choice", "yesno", "score"):
@@ -108,6 +126,8 @@ def parse_plan(data: dict, max_subtasks: int) -> tuple[list[SubtaskSpec], str]:
             success_criteria=str(s.get("success_criteria") or "").strip(), answer_type=at, decision=dec,
             depends_on=[str(x) for x in (s.get("depends_on") or []) if str(x)],
         ))
+    for s in subs:
+        s.depends_on = [rename.get(d, d) for d in s.depends_on]
     ids = {s.id for s in subs}
     for s in subs:  # drop unknown or self dependencies, then break cycles by order
         s.depends_on = [d for d in s.depends_on if d in ids and d != s.id]
@@ -155,13 +175,24 @@ class Planner:
         self.gw, self.model, self.max_subtasks, self.reasoning = gateway, model, max_subtasks, reasoning
         self.fallbacks = [m for m in (fallbacks or []) if m != model]
 
-    async def plan(self, request: str, context: str = "") -> Plan:
+    async def plan(self, request: str, context: str = "", can_retry=None) -> Plan:
+        """Ask for a plan; one more try if the first is not valid JSON and `can_retry()` (the budget) allows it."""
+        from .gateway import GatewayError
         system = SYSTEM.replace("{max_subtasks}", str(self.max_subtasks))
         user = request if not context else f"{request}\n\nContext from earlier steps:\n{context}"
         messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
-        total, ms, last_err = Usage(), 0, None
+        total, ms, last_err, model = Usage(), 0, None, self.model
         for attempt in range(2):
-            r = await self._call(messages)
+            if attempt and can_retry is not None and not can_retry():
+                break
+            try:
+                r = await self._call(messages)
+            except GatewayError as e:
+                if not attempt:
+                    raise
+                last_err = e
+                break
+            model = r.model
             total.tokens_in += r.usage.tokens_in
             total.tokens_out += r.usage.tokens_out
             total.cost += r.usage.cost
@@ -173,7 +204,7 @@ class Planner:
                 last_err = e
                 messages += [{"role": "assistant", "content": r.text},
                              {"role": "user", "content": f"That was not a valid plan ({e}). Reply with the JSON plan only."}]
-        raise PlanError(str(last_err))
+        raise PlanError(str(last_err), usage=total, model=model)
 
     async def _call(self, messages):
         from .gateway import GatewayError

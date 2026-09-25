@@ -263,7 +263,7 @@ class Engine:
         except BudgetExceeded as e:
             status, error = "partial", str(e)
             self._emit("budget_exceeded", root, message=str(e))
-        except GatewayError as e:
+        except (GatewayError, PlanError) as e:
             status, error = "failed", str(e)
             self._emit("error", root, message=str(e))
         answer = root.result or self._partial_answer()
@@ -323,11 +323,25 @@ class Engine:
     async def _split(self, node: Node, gate: Gate, context: str) -> None:
         node.kind = "split"
         planner = self.planner if gate.tier >= 4 else self.planner_light
-        est = self._check_budget(planner.model, estimate_tokens(node.prompt) + 900, 2000)
+        tin = estimate_tokens(node.prompt) + 900
+        est = self._check_budget(planner.model, tin, 4500)
+        retry = self.catalog.get(planner.model).cost(tin * 2, 4500)
         try:
-            plan: Plan = await planner.plan(node.prompt, context)
-        finally:
+            plan: Plan = await planner.plan(node.prompt, context, can_retry=lambda: self.cost + self.reserved + retry
+                                            <= self.limits.max_cost)
+        except PlanError as e:
             self.reserved -= est
+            if e.usage.cost or e.usage.tokens_in:
+                self._spend(node, "planning", e.usage, e.model or planner.model)
+            # no usable plan: do the request in one go rather than fail it
+            self._emit("plan_failed", node, message=str(e)[:300])
+            node.kind = "llm"
+            await self._execute(node, gate, context)
+            return
+        except BaseException:
+            self.reserved -= est
+            raise
+        self.reserved -= est
         self._spend(node, "planning", plan.usage, plan.model)
         prefix = "" if node.id == "root" else node.id + "."
         kids = []
@@ -344,17 +358,23 @@ class Engine:
         # Does splitting pay? Jev gates every part now (it costs almost nothing); if the parts would not go to
         # clearly cheaper models than the whole, do the whole in one go instead.
         gated = [k for k in kids if not k.decision]
-        gates = await asyncio.gather(*(self.decider.gate(k.prompt) for k in gated))
-        for k, g in zip(gated, gates):
+        results = await asyncio.gather(*(self.decider.gate(k.prompt) for k in gated), return_exceptions=True)
+        tiers = []
+        for k, g in zip(gated, results):
+            if isinstance(g, BaseException):
+                if not isinstance(g, GatewayError):
+                    raise g
+                continue  # this part will ask its own gate when it runs
             self._spend(node, "decisions", g.usage, self.catalog.decider.id)
             self._pre_gates[k.id] = g
-        pays, parts, whole = self._split_pays(gate, [g.tier for g in gates], len(kids) - len(gated))
+            tiers.append(g.tier)
+        pays, parts, whole = self._split_pays(gate, tiers)
         if not pays:
             for k in kids:
                 self.nodes.pop(k.id, None)
                 self._pre_gates.pop(k.id, None)
             node.children = []
-            self._emit("split_rejected", node, parts_tiers=[g.tier for g in gates], parts_typical=round(parts, 6),
+            self._emit("split_rejected", node, parts_tiers=tiers, parts_typical=round(parts, 6),
                        whole_typical=round(whole, 6))
             await self._execute(node, gate, context)
             return
@@ -404,12 +424,17 @@ class Engine:
         text = await self._chat(node, "assembly", chain, AGGREGATOR, user, 1500)
         node.result = stitch(text, kids, level=2 if node.id == "root" else 3)
 
-    def _split_pays(self, gate: Gate, part_tiers: list[int], jev_parts: int) -> tuple[bool, float, float]:
-        """Compare the typical call of the whole request's tier with the average part (parts Jev answers cost
-        almost nothing). Splitting goes ahead only if the parts are cheaper by the overhead factor."""
+    def _split_pays(self, gate: Gate, part_tiers: list[int]) -> tuple[bool, float, float]:
+        """Compare the typical call of the whole request's tier with the average written part. Splitting goes ahead
+        only if no written part needs a higher tier than the whole and the parts are cheaper by the overhead
+        factor. Parts that Jev answers are not counted either way; a plan made only of them always goes ahead."""
         whole = self.catalog.pick(gate.tier, self.profile).typical_cost
-        costs = [self.catalog.pick(t, self.profile).typical_cost for t in part_tiers] + [0.0] * jev_parts
-        parts = sum(costs) / len(costs) if costs else whole
+        if not part_tiers:
+            return True, 0.0, whole
+        if max(part_tiers) > gate.tier:
+            return False, float("inf"), whole
+        costs = [self.catalog.pick(t, self.profile).typical_cost for t in part_tiers]
+        parts = sum(costs) / len(costs)
         return parts * self.decider.s.split_overhead < whole, parts, whole
 
     # ------------------------------------------------------ atomic path (LLM)
@@ -484,7 +509,11 @@ class Engine:
     async def _final_check(self, root: Node, request: str) -> None:
         if root.kind != "split":
             return  # an atomic answer was already verified against the request
-        p, usage, ms = await self.decider.final_check(request, root.result)
+        try:
+            p, usage, ms = await self.decider.final_check(request, root.result)
+        except GatewayError as e:  # the answer is complete: a failed extra check must not undo it
+            self._emit("final_check", root, ok=None, probability=None, cost=0.0, message=str(e)[:200])
+            return
         self._spend(root, "checks", usage, self.catalog.decider.id)
         ok = p >= self.decider.s.final_pass
         self._emit("final_check", root, ok=ok, probability=round(p, 3), cost=usage.cost)
@@ -493,7 +522,10 @@ class Engine:
         chain = [m.id for m in self.catalog.chain(2, self.profile)]
         self._emit("repair", root, next_attempt=2, tier_up=False, model=chain[0], gap_fill=True)
         user = f"REQUEST:\n{request}\n\nANSWER:\n{root.result}"
-        extra = (await self._chat(root, "assembly", chain, GAP_FILLER, user, 2500)).strip()
+        try:
+            extra = (await self._chat(root, "assembly", chain, GAP_FILLER, user, 2500)).strip()
+        except (GatewayError, BudgetExceeded):  # the answer stands as it is
+            return
         if extra and "NOTHING MISSING" not in extra.upper():
             root.result = root.result.rstrip() + "\n\n" + extra
 

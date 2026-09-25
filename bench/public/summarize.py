@@ -29,7 +29,7 @@ def load(path: str) -> list[dict]:
 
 def stats(rows: list[dict]) -> dict:
     ok = [r for r in rows if r["baseline"]["status"] == "done"]
-    w = [r["quality"]["winner"] for r in ok]
+    w = [r["quality"]["winner"] for r in ok if r["quality"]["winner"] in ("siac", "tie", "baseline")]
     sc, bc = sum(r["siac"]["cost"] for r in ok), sum(r["baseline"]["cost"] for r in ok)
     n = len(w) or 1
     return {"n": len(ok), "siac": sc, "base": bc, "saving": (1 - sc / bc) * 100 if bc else 0.0,

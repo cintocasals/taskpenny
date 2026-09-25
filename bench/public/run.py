@@ -60,7 +60,7 @@ def judge_user(task: dict, a: str, b: str) -> str:
     return "\n".join(parts)
 
 
-VERDICT = re.compile(r"\[\[([ABC])\]\]")
+VERDICT = re.compile(r"\[\[\s*([ABC])\s*\]\]")
 
 
 def parse_verdict(text: str) -> str | None:
@@ -68,7 +68,7 @@ def parse_verdict(text: str) -> str | None:
     return found[-1] if found else None
 
 
-LINE = re.compile(r"^\W*(\d{1,2})[*_]*\s*[.:)\-]\s*(.*)$")
+LINE = re.compile(r"^\W*(?:message|msg|item|no\.?|#)?\s*(\d{1,2})[*_]*\s*[.:)\-|]\s*(.*)$", re.I)
 
 
 def score_labels(answer: str, gold: dict[str, str], options: list[str]) -> dict:
@@ -77,6 +77,11 @@ def score_labels(answer: str, gold: dict[str, str], options: list[str]) -> dict:
     got: dict[str, str] = {}
     strict_lines = 0
     for raw in (answer or "").splitlines():
+        table = raw.strip().startswith("|")
+        if table:  # a Markdown table row: first cell the number, last cell the label (not the format asked for)
+            cells = [c.strip(" *_`") for c in raw.strip().strip("|").split("|")]
+            if len(cells) >= 2 and cells[0].isdigit():
+                raw = f"{cells[0]}: {cells[-1]}"
         m = LINE.match(raw.strip())
         if not m or m.group(1) not in gold or m.group(1) in got:
             continue
@@ -87,11 +92,11 @@ def score_labels(answer: str, gold: dict[str, str], options: list[str]) -> dict:
         label = next((o for o in opts if o == tail), None) or next((o for o in opts if o in tail), None)
         if label:
             got[m.group(1)] = label
-            if re.fullmatch(r"\d{1,2}\s*:\s*" + re.escape(label) + r"\.?", raw.strip(), re.I):
+            if not table and re.fullmatch(r"\d{1,2}\s*:\s*" + re.escape(label) + r"\.?", raw.strip(), re.I):
                 strict_lines += 1
     right = sum(1 for k, v in gold.items() if got.get(k) == v)
-    return {"correct": right, "total": len(gold), "accuracy": right / len(gold), "answered": len(got),
-            "strict": strict_lines == len(gold)}
+    return {"correct": right, "total": len(gold), "accuracy": right / (len(gold) or 1), "answered": len(got),
+            "strict": bool(gold) and strict_lines == len(gold)}
 
 
 CORE = {"hard": 5, "multi": 5, "classify": 5, "ca": 3, "es": 2}
@@ -270,7 +275,7 @@ def report(rows: list[dict], args) -> str:
         if not rs:
             continue
         sc, bc = sum(r["siac"]["cost"] for r in rs_ok), sum(r["baseline"]["cost"] for r in rs_ok)
-        w = [r["quality"]["winner"] for r in rs_ok]
+        w = [r["quality"]["winner"] for r in rs_ok if r["quality"]["winner"] in ("siac", "tie", "baseline")]
         n = len(w) or 1
         good = sum(1 for x in w if x in ("siac", "tie"))
         lines.append(f"| {g} | {len(rs)} | {money(sc)} | {money(bc)} | {100 * (1 - sc / bc):.0f}% | "
@@ -321,7 +326,8 @@ async def main():
                                                          "5 hard, 5 multi, 5 classify, 3 ca, 2 es (seeded)")
     ap.add_argument("--parallel", type=int, default=2)
     ap.add_argument("--max-cost", type=float, default=0.30, help="SIAC budget per task, USD")
-    ap.add_argument("--reserve", type=float, default=0.25, help="expected worst case per task for the guard, USD")
+    ap.add_argument("--reserve", type=float, default=None,
+                    help="worst case per task for the guard, USD (default: SIAC's --max-cost plus 0.25)")
     ap.add_argument("--total-budget", type=float, default=1.0, help="stop starting tasks after this, USD")
     ap.add_argument("--baseline", default=None, help="default: the catalog baseline")
     ap.add_argument("--baseline-tokens", type=int, default=16000)
@@ -335,6 +341,8 @@ async def main():
     ap.add_argument("--reuse-siac", help="a results .jsonl: take SIAC's answers from it instead of running SIAC again")
     ap.add_argument("--reuse-baseline", help="a results .jsonl: take the baseline's answers from it (same model)")
     args = ap.parse_args()
+    if args.reserve is None:
+        args.reserve = args.max_cost + 0.25  # SIAC's own cap, plus a long baseline answer and the judge
 
     args.reuse, args.reuse_base = {}, {}
     if args.reuse_siac:
@@ -388,10 +396,13 @@ async def main():
             if not await budget.reserve(args.reserve):
                 print(f"{t['id']}: skipped (total budget ${args.total_budget:.2f} reached)", flush=True)
                 return None
-            used = 0.0
+            used = args.reserve  # if the task breaks, assume it spent its whole reservation
             try:
                 r = await one(t, catalog, gw, args)
                 used = r["cost_total"]
+            except Exception as e:  # noqa: BLE001 - one broken task must not stop the others
+                print(f"{t['id']}: failed ({type(e).__name__}: {str(e)[:200]})", flush=True)
+                return None
             finally:
                 budget.release(args.reserve, used)
             with jl.open("a", encoding="utf-8") as f:

@@ -180,10 +180,11 @@ class Catalog:
         for m in self.candidates(real_tier, providers, vision=vision, min_context=min_context)[1:]:
             if m.typical_cost <= ceiling and m not in out:
                 out.append(m)
-        for t in range(real_tier - 1, 0, -1):
-            for m in self.candidates(t, providers, vision=vision, min_context=min_context)[:1]:
-                if m not in out:
-                    out.append(m)
+        for t in range(real_tier - 1, 0, -1):  # the cheapest model of each lower tier not already listed
+            m = next((m for m in self.candidates(t, providers, vision=vision, min_context=min_context)
+                      if m not in out), None)
+            if m:
+                out.append(m)
         return out[:length]
 
     def pick_named(self, model_id: str, profile: str = "all", fallback_tier: int = 3) -> Model:
