@@ -126,6 +126,22 @@ class Catalog:
                 return found[0]
         raise NoModelError(f"no model for tier {tier} with profile {profile!r}")
 
+    def chain(self, tier: int, profile: str = "all", *, vision: bool = False, min_context: int = 0,
+              length: int = 3) -> list[Model]:
+        """The cheapest model for the tier first, then the other models of that tier, then higher tiers.
+        Used as a fallback list when a provider refuses or fails."""
+        providers = self.providers(profile)
+        out: list[Model] = []
+        for t in range(max(1, tier), 5):
+            for m in self.candidates(t, providers, vision=vision, min_context=min_context):
+                if m not in out:
+                    out.append(m)
+            if len(out) >= length:
+                break
+        if not out:
+            raise NoModelError(f"no model for tier {tier} with profile {profile!r}")
+        return out[:length]
+
     def pick_named(self, model_id: str, profile: str = "all", fallback_tier: int = 3) -> Model:
         """A fixed role model (planner, baseline) if the profile allows its provider, else the cheapest of a tier."""
         m = self.get(model_id)

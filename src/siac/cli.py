@@ -61,6 +61,8 @@ class Printer:
             line = f"jev   solved {ev['items']} item(s)" + (f", {len(ev['unsure'])} unsure" if ev["unsure"] else "")
         elif typ == "fallback":
             line = f"fallback {ev['items']} unsure item(s) -> {ev['model']}"
+        elif typ == "model_fallback":
+            line = self.c(f"model {ev['model']} refused ({ev['status']}) -> {ev['next']}", "33")
         elif typ == "aggregate":
             line = f"assemble with {ev['model']}"
         elif typ == "final_check":

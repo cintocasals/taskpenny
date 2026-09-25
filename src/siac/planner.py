@@ -146,8 +146,9 @@ def _clean_decision(kind: str, dec: dict | None) -> dict | None:
 
 
 class Planner:
-    def __init__(self, gateway: GatewayLike, model: str, max_subtasks: int = 12):
+    def __init__(self, gateway: GatewayLike, model: str, max_subtasks: int = 12, fallbacks: list[str] | None = None):
         self.gw, self.model, self.max_subtasks = gateway, model, max_subtasks
+        self.fallbacks = [m for m in (fallbacks or []) if m != model]
 
     async def plan(self, request: str, context: str = "") -> Plan:
         system = SYSTEM.replace("{max_subtasks}", str(self.max_subtasks))
@@ -155,7 +156,7 @@ class Planner:
         messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
         total, ms, last_err = Usage(), 0, None
         for attempt in range(2):
-            r = await self.gw.chat(self.model, messages, max_tokens=8000, temperature=0.2, json_mode=True)
+            r = await self._call(messages)
             total.tokens_in += r.usage.tokens_in
             total.tokens_out += r.usage.tokens_out
             total.cost += r.usage.cost
@@ -168,3 +169,13 @@ class Planner:
                 messages += [{"role": "assistant", "content": r.text},
                              {"role": "user", "content": f"That was not a valid plan ({e}). Reply with the JSON plan only."}]
         raise PlanError(str(last_err))
+
+    async def _call(self, messages):
+        from .gateway import GatewayError
+        models = [self.model] + self.fallbacks
+        for i, m in enumerate(models):
+            try:
+                return await self.gw.chat(m, messages, max_tokens=8000, temperature=0.2, json_mode=True)
+            except GatewayError as e:
+                if i + 1 == len(models) or e.status not in (0, 402, 403, 404, 408, 429, 500, 502, 503, 504, 529):
+                    raise

@@ -18,6 +18,7 @@ from .planner import Plan, PlanError, Planner
 
 NOTES_MARK = "HANDOFF NOTES:"
 PROBLEM_MARK = "PLAN PROBLEM:"
+FALLBACK_STATUS = {0, 402, 403, 404, 408, 429, 500, 502, 503, 504, 529}
 
 WORKER_ROOT = ("Do the task below completely and well. Answer in the language of the task. "
                "Give only the answer, with no preamble about yourself.")
@@ -111,7 +112,8 @@ class Engine:
         self.limits = limits or Limits()
         self.decider = Decider(gateway, catalog, settings)
         planner_model = catalog.pick_named(catalog.planner, profile, fallback_tier=3).id
-        self.planner = Planner(gateway, planner_model, self.limits.max_subtasks)
+        self.planner = Planner(gateway, planner_model, self.limits.max_subtasks,
+                               fallbacks=[m.id for m in catalog.chain(3, profile)])
         self.on_event = on_event
         self.allow_split = allow_split
         self._sem = asyncio.Semaphore(self.limits.max_parallel)
@@ -148,16 +150,32 @@ class Engine:
         if self.cost + est > self.limits.max_cost:
             raise BudgetExceeded(f"budget of ${self.limits.max_cost:.2f} reached (spent ${self.cost:.4f})")
 
-    async def _chat(self, node: Node, role: str, model: str, system: str, user: str, max_tokens: int) -> str:
-        self._check_budget(model, estimate_tokens(system + user), max_tokens // 3)
-        async with self._sem:
-            r = await self.gw.chat(model, [{"role": "system", "content": system}, {"role": "user", "content": user}],
-                                   max_tokens=max_tokens)
-        self._spend(node, role, r.usage, model)
-        self._emit("llm_call", node, role=role, model=model, tokens_in=r.usage.tokens_in,
-                   tokens_out=r.usage.tokens_out, cost=r.usage.cost, cost_source=r.usage.cost_source,
-                   latency_ms=r.latency_ms)
-        return r.text
+    async def _chat(self, node: Node, role: str, model: str | list[str], system: str, user: str,
+                    max_tokens: int) -> str:
+        """Call a model; if the provider refuses or keeps failing, try the next model in the list."""
+        models = [model] if isinstance(model, str) else list(model)
+        last: GatewayError | None = None
+        for i, m in enumerate(models):
+            self._check_budget(m, estimate_tokens(system + user), max_tokens // 3)
+            try:
+                async with self._sem:
+                    r = await self.gw.chat(m, [{"role": "system", "content": system},
+                                               {"role": "user", "content": user}], max_tokens=max_tokens)
+            except GatewayError as e:
+                last = e
+                if e.status in FALLBACK_STATUS and i + 1 < len(models):
+                    self._emit("model_fallback", node, model=m, next=models[i + 1], status=e.status,
+                               message=str(e)[:200])
+                    continue
+                raise
+            if m != models[0]:
+                node.model = m
+            self._spend(node, role, r.usage, m)
+            self._emit("llm_call", node, role=role, model=m, tokens_in=r.usage.tokens_in,
+                       tokens_out=r.usage.tokens_out, cost=r.usage.cost, cost_source=r.usage.cost_source,
+                       latency_ms=r.latency_ms)
+            return r.text
+        raise last or GatewayError(0, "no model available")
 
     # --------------------------------------------------------------- the loop
     async def run(self, request: str) -> RunResult:
@@ -279,7 +297,8 @@ class Engine:
         return "\n\n".join(parts)
 
     async def _aggregate(self, node: Node, gate: Gate, kids: list[Node], assembly: str) -> None:
-        model = self.catalog.pick(max(2, gate.tier), self.profile).id
+        chain = [m.id for m in self.catalog.chain(max(2, gate.tier), self.profile)]
+        model = chain[0]
         node.model = model
         results = []
         for k in kids:
@@ -289,7 +308,7 @@ class Engine:
             results.append(block)
         user = (f"REQUEST:\n{node.prompt}\n\nASSEMBLY INSTRUCTIONS:\n{assembly}\n\nRESULTS:\n" + "\n\n".join(results))
         self._emit("aggregate", node, model=model)
-        node.result = (await self._chat(node, "assembly", model, AGGREGATOR, user, self.limits.worker_max_tokens)).strip()
+        node.result = (await self._chat(node, "assembly", chain, AGGREGATOR, user, self.limits.worker_max_tokens)).strip()
 
     # ------------------------------------------------------ atomic path (LLM)
     async def _execute(self, node: Node, gate: Gate, context: str) -> None:
@@ -301,10 +320,12 @@ class Engine:
         for attempt in range(self.limits.max_repairs + 1):
             if attempt == 2:  # second repair: one tier up
                 tier = min(4, tier + 1)
-            model = self.catalog.pick(tier, self.profile).id
+            chain = [m.id for m in self.catalog.chain(tier, self.profile)]
+            model = chain[0]
             node.model, node.tier = model, tier
             self._emit("route", node, model=model, tier=tier, attempt=attempt + 1)
-            text = await self._chat(node, "work", model, system, user + feedback, self.limits.worker_max_tokens)
+            text = await self._chat(node, "work", chain, system, user + feedback, self.limits.worker_max_tokens)
+            model = node.model
             result, notes, problem = split_notes(text)
             node.result, node.notes, node.problem = result, notes, problem
             p, usage, ms = await self.decider.verify(node.prompt, node.criteria, result)
@@ -330,12 +351,13 @@ class Engine:
         self._emit("jev_solve", node, items=len(answers), unsure=out["unsure"], cost=out["usage"].cost,
                    latency_ms=out["latency_ms"])
         if out["unsure"]:  # items Jev was not sure about: a cheap model answers them with the same options
-            model = self.catalog.pick(1, self.profile).id
+            chain = [m.id for m in self.catalog.chain(1, self.profile)]
+            model = chain[0]
             items = [it for it in spec["items"] if it["id"] in out["unsure"]]
             allowed = ", ".join(spec.get("options") or spec.get("scale") or ["yes", "no"])
             user = (f"{spec['question']}\nAllowed answers: {allowed}.\nAnswer each item with its id and one allowed "
                     "answer, one per line, like '3: label'.\n\n" + "\n".join(f"{it['id']}: {it['text']}" for it in items))
-            text = await self._chat(node, "work", model, "Answer with the allowed labels only.", user, 2000)
+            text = await self._chat(node, "work", chain, "Answer with the allowed labels only.", user, 2000)
             for line in text.splitlines():
                 m = re.match(r"\s*([\w.-]+)\s*[:\-]\s*(.+)", line)
                 if m and m.group(1) in answers:
@@ -359,12 +381,13 @@ class Engine:
         if ok:
             return
         tier = min(4, (root.tier or 3) + 1)
-        model = self.catalog.pick(tier, self.profile).id
+        chain = [m.id for m in self.catalog.chain(tier, self.profile)]
+        model = chain[0]
         user = (f"REQUEST:\n{request}\n\nDRAFT ANSWER:\n{root.result}\n\nA reviewer found the draft does not fully "
                 "answer the request. Rewrite it so that it answers everything, keeping what is good.")
         self._emit("repair", root, next_attempt=2, tier_up=True, model=model)
-        root.result = (await self._chat(root, "assembly", model, AGGREGATOR, user, self.limits.worker_max_tokens)).strip()
         root.model = model
+        root.result = (await self._chat(root, "assembly", chain, AGGREGATOR, user, self.limits.worker_max_tokens)).strip()
 
     # ---------------------------------------------------------------- receipt
     def _partial_answer(self) -> str:

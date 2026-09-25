@@ -221,3 +221,27 @@ def test_cli_models_and_demo(tmp_path, capsys):
     assert "Cheapest per tier" in capsys.readouterr().out
     assert main(["demo", "--save-dir", str(tmp_path), "--quiet"]) == 0
     assert list(tmp_path.glob("*.json"))
+
+
+async def test_refused_model_falls_back_to_next_in_tier(catalog):
+    from siac.gateway import GatewayError
+
+    class Refusing(ScriptedGateway):
+        async def chat(self, model, messages, **kw):
+            if model == "anthropic/claude-opus-5.5":
+                self.chats.append(model)
+                raise GatewayError(429, "No access to this model at this time.")
+            return await super().chat(model, messages, **kw)
+
+    gw = Refusing(catalog, gate={"split": 0.1, "tier": ("4", 0.9), "task_type": "analysis", "answer": "text"})
+    events = []
+    res = await Engine(gw, catalog, on_event=events.append).run("A high-stakes decision")
+    assert res.status == "done"
+    assert gw.chats == ["anthropic/claude-opus-5.5", "openai/gpt-6-astra"]
+    assert res.nodes["root"]["model"] == "openai/gpt-6-astra"
+    assert any(e["type"] == "model_fallback" for e in events)
+
+
+def test_chain_order(catalog):
+    assert [m.id for m in catalog.chain(4)] == ["anthropic/claude-opus-5.5", "openai/gpt-6-astra"]
+    assert [m.id for m in catalog.chain(3)][:2] == ["anthropic/claude-sonnet-5", "openai/gpt-6-sol"]
