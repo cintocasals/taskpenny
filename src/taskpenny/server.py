@@ -13,12 +13,12 @@ starting runs through a visitor's browser.
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import hmac
 import json
 import math
 import os
 import re
+import secrets
 import threading
 import time
 import webbrowser
@@ -49,6 +49,21 @@ class BadInput(ValueError):
     pass
 
 
+def host_allowed(host_header: str | None, bind_host: str, extra: set[str]) -> bool:
+    """Without a key, only names that cannot be a stranger's website may reach the server. This stops DNS
+    rebinding: a web page whose domain is made to point at 127.0.0.1 still sends its own domain as Host."""
+    host = (host_header or "").strip().lower()
+    if host.startswith("["):  # [::1]:8765
+        name = host[1:].split("]", 1)[0]
+    else:
+        name = host.rsplit(":", 1)[0] if host.count(":") == 1 else host
+    if not name or name in ("localhost", "127.0.0.1", "::1", bind_host.lower()) or name in extra:
+        return True
+    if ":" in name or re.fullmatch(r"[\d.]+", name):  # an IP address typed directly, not a domain
+        return True
+    return "." not in name  # a one-word name such as a Docker service ("taskpenny"), never a public domain
+
+
 class LiveRun:
     def __init__(self, run_id: str, request: str, source: str = "page"):
         self.id, self.request, self.source = run_id, request, source
@@ -72,14 +87,17 @@ class LiveRun:
 
 class App:
     def __init__(self, catalog: Catalog, runs_dir: Path, dry_run_default: bool, api_key: str | None = None,
-                 max_cost_cap: float | None = None):
+                 max_cost_cap: float | None = None, force_dry: bool = False, bind_host: str = "127.0.0.1"):
         self.catalog, self.runs_dir = catalog, runs_dir
-        self.dry_run_default = dry_run_default
+        self.dry_run_default = dry_run_default or force_dry
+        self.force_dry = force_dry  # `serve --dry-run`: no request may spend
+        self.bind_host = bind_host
+        self.allowed_hosts = {h.strip().lower() for h in os.environ.get("TASKPENNY_ALLOWED_HOSTS", "").split(",")
+                              if h.strip()}
+        self.sessions: set[str] = set()  # one random token per sign-in; signing out forgets it
         self.live: dict[str, LiveRun] = {}
         self.has_key = has_any_key()
         self.api_key = api_key or None
-        self.session = (hmac.new(self.api_key.encode(), b"taskpenny-session-v1", hashlib.sha256).hexdigest()
-                        if self.api_key else "")
         cap = max_cost_cap if max_cost_cap is not None else float(os.environ.get("TASKPENNY_MAX_COST", "2") or 2)
         self.max_cost_cap = cap if math.isfinite(cap) and cap > 0 else 2.0
         self.profiles = list(catalog.profiles) or ["all"]
@@ -156,20 +174,21 @@ class App:
                 for r in list(self.live.values()) if not r.done]
 
     def saved_runs(self) -> list[dict]:
+        def entry(run_id: str, d: dict) -> dict:
+            r = d.get("receipt") if isinstance(d.get("receipt"), dict) else {}
+            return {"id": run_id, "request": str(d.get("request") or "")[:160], "status": d.get("status"),
+                    "cost": r.get("total_cost"), "saving_pct": r.get("saving_pct"), "started_at": d.get("started_at")}
         out = []
         for p in sorted(self.runs_dir.glob("*.json"), reverse=True)[:50]:
             try:
                 d = json.loads(p.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 continue
-            out.append({"id": d.get("id", p.stem), "request": d.get("request", "")[:160],
-                        "status": d.get("status"), "cost": d.get("receipt", {}).get("total_cost"),
-                        "saving_pct": d.get("receipt", {}).get("saving_pct"), "started_at": d.get("started_at")})
+            if isinstance(d, dict) and RUN_ID.match(p.stem):
+                out.append(entry(p.stem, d))  # the file name is the id that load_run opens
         demo = load_demo()  # the real run shipped with the package, so there is always something to replay
-        if not any(o["id"] == demo["id"] for o in out):
-            out.append({"id": demo["id"], "request": demo.get("request", "")[:160], "status": demo.get("status"),
-                        "cost": demo["receipt"]["total_cost"], "saving_pct": demo["receipt"].get("saving_pct"),
-                        "started_at": demo.get("started_at"), "example": True})
+        if not (self.runs_dir / f"{demo['id']}.json").exists():
+            out.append(entry(demo["id"], demo) | {"example": True})
         return out
 
     def load_run(self, run_id: str) -> dict | None:
@@ -179,7 +198,11 @@ class App:
         if not p.exists():
             demo = load_demo()
             return demo if run_id == demo["id"] else None
-        return json.loads(p.read_text(encoding="utf-8"))
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        return d if isinstance(d, dict) else None
 
 
 def make_handler(app: App):
@@ -215,7 +238,15 @@ def make_handler(app: App):
             except Exception:  # noqa: BLE001 - a malformed cookie header is just no cookie
                 return False
             got = jar[COOKIE].value if COOKIE in jar else ""
-            return bool(got) and hmac.compare_digest(got.encode(), app.session.encode())
+            return bool(got) and any(hmac.compare_digest(got.encode(), s.encode()) for s in list(app.sessions))
+
+        def _host_ok(self) -> bool:
+            if app.api_key or host_allowed(self.headers.get("Host"), app.bind_host, app.allowed_hosts):
+                return True
+            self._json({"error": "this Taskpenny server has no key, so it only answers to localhost; set "
+                                 "TASKPENNY_API_KEY, or list this name in TASKPENNY_ALLOWED_HOSTS"},
+                       HTTPStatus.FORBIDDEN)
+            return False
 
         def _require_auth(self, api_style: bool = False) -> bool:
             if self._authorized():
@@ -250,6 +281,8 @@ def make_handler(app: App):
         # ------------------------------------------------------------------ GET
         def do_GET(self):
             u = urlparse(self.path)
+            if u.path != "/health" and not self._host_ok():
+                return
             if u.path in ("/", "/index.html"):
                 self.send_response(HTTPStatus.OK)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -270,6 +303,7 @@ def make_handler(app: App):
                 return
             if u.path == "/api/info":
                 self._json({"has_key": app.has_key, "dry_run_default": app.dry_run_default or not app.has_key,
+                            "force_dry": app.force_dry or not app.has_key,
                             "profiles": app.profiles, "baseline": app.catalog.baseline,
                             "decider": app.catalog.decider.id, "decider_label": app.decider_label,
                             "max_cost_cap": app.max_cost_cap, "login": bool(app.api_key)})
@@ -288,7 +322,8 @@ def make_handler(app: App):
                 body = to_markdown(run).encode("utf-8")
                 self.send_response(HTTPStatus.OK)
                 self.send_header("Content-Type", "text/markdown; charset=utf-8")
-                self.send_header("Content-Disposition", f'attachment; filename="taskpenny-{run.get("id", "run")}.md"')
+                run_id = u.path.rsplit("/", 1)[-1]  # already checked by load_run: letters, digits, dot, dash
+                self.send_header("Content-Disposition", f'attachment; filename="taskpenny-{run_id}.md"')
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
@@ -304,6 +339,8 @@ def make_handler(app: App):
         # ----------------------------------------------------------------- POST
         def do_POST(self):
             path = urlparse(self.path).path
+            if not self._host_ok():
+                return
             try:
                 if path in ("/v1/chat/completions", "/chat/completions"):
                     return self._chat()
@@ -312,7 +349,7 @@ def make_handler(app: App):
                 if path == "/api/login":
                     return self._login()
                 if path == "/api/logout":
-                    return self._json({"ok": True}, headers={"Set-Cookie": f"{COOKIE}=; Path=/; Max-Age=0"})
+                    return self._logout()
                 if path == "/api/run":
                     return self._run()
                 return self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
@@ -328,8 +365,20 @@ def make_handler(app: App):
             if not hmac.compare_digest(key.encode(), app.api_key.encode()):
                 time.sleep(1.0)  # slow down guessing
                 return self._json({"error": "wrong key"}, HTTPStatus.UNAUTHORIZED)
+            token = secrets.token_urlsafe(32)
+            app.sessions.add(token)
             flags = "; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000" + ("; Secure" if self._secure() else "")
-            self._json({"ok": True}, headers={"Set-Cookie": f"{COOKIE}={app.session}{flags}"})
+            self._json({"ok": True}, headers={"Set-Cookie": f"{COOKIE}={token}{flags}"})
+
+        def _logout(self):
+            jar = SimpleCookie()
+            try:
+                jar.load(self.headers.get("Cookie") or "")
+            except Exception:  # noqa: BLE001
+                pass
+            if COOKIE in jar:
+                app.sessions.discard(jar[COOKIE].value)  # the token stops working everywhere, not just here
+            self._json({"ok": True}, headers={"Set-Cookie": f"{COOKIE}=; Path=/; Max-Age=0"})
 
         def _run(self):
             if not self._require_auth():
@@ -340,7 +389,7 @@ def make_handler(app: App):
                 raise BadInput("empty request")
             profile = app.check_profile(str(body.get("profile") or "all"))
             max_cost = app.budget(body.get("max_cost"))
-            dry = bool(body.get("dry_run")) or not app.has_key
+            dry = bool(body.get("dry_run")) or not app.has_key or app.force_dry
             run_id = app.start(request, dry_run=dry, profile=profile, max_cost=max_cost,
                                allow_split=not body.get("no_split"))
             self._json({"id": run_id, "dry_run": dry, "max_cost": max_cost})
@@ -352,6 +401,11 @@ def make_handler(app: App):
             body = self._body()
             if body.get("tools") or body.get("functions"):
                 raise BadInput("Taskpenny does not support tool calling yet: send plain messages")
+            fmt = body.get("response_format") or ((body.get("text") or {}).get("format")
+                                                  if isinstance(body.get("text"), dict) else None)
+            if isinstance(fmt, dict) and fmt.get("type") not in (None, "text"):
+                raise BadInput("Taskpenny does not support JSON mode (response_format) yet: ask for JSON in the "
+                               "message instead")
             model = str(body.get("model") or "taskpenny")
             try:
                 profile = oai.profile_from_model(model, app.profiles)
@@ -360,7 +414,7 @@ def make_handler(app: App):
             except oai.BadRequest as e:
                 raise BadInput(str(e)) from None
             opts = body.get("taskpenny") if isinstance(body.get("taskpenny"), dict) else {}
-            max_cost = app.budget(opts.get("max_cost") or self.headers.get("X-Taskpenny-Max-Cost"))
+            max_cost = app.budget(opts["max_cost"] if "max_cost" in opts else self.headers.get("X-Taskpenny-Max-Cost"))
             dry = bool(opts.get("dry_run")) or not app.has_key or app.dry_run_default
             run_id = app.start(request, dry_run=dry, profile=profile, max_cost=max_cost,
                                allow_split=not opts.get("no_split"), source="api")
@@ -373,6 +427,9 @@ def make_handler(app: App):
                            "the run failed")
                 return self._json(oai.error(str(msg), "upstream_error"), HTTPStatus.BAD_GATEWAY)
             run = live.result
+            if run.get("status") == "failed":  # nothing usable came back: say so, do not send an empty answer
+                return self._json(oai.error(str(run.get("error") or "the run failed"), "upstream_error"),
+                                  HTTPStatus.BAD_GATEWAY)
             if body.get("stream"):
                 self.send_response(HTTPStatus.OK)
                 self.send_header("Content-Type", "text/event-stream")
@@ -422,13 +479,15 @@ def make_handler(app: App):
 
 
 def serve(host: str = "127.0.0.1", port: int = 8765, *, runs_dir: str = "runs", dry_run: bool = False,
-          models: str | None = None, open_browser: bool = True, api_key: str | None = None) -> None:
+          models: str | None = None, open_browser: bool = True, api_key: str | None = None,
+          force_dry: bool = False) -> None:
     catalog = Catalog.load(models)
-    app = App(catalog, Path(runs_dir), dry_run, api_key=api_key)
+    app = App(catalog, Path(runs_dir), dry_run, api_key=api_key, force_dry=force_dry, bind_host=host)
     Path(runs_dir).mkdir(parents=True, exist_ok=True)
     httpd = ThreadingHTTPServer((host, port), make_handler(app))
     url = f"http://{host}:{port}/"
-    mode = "dry run (no key found)" if not app.has_key else ("dry run by default" if dry_run else "live")
+    mode = ("dry run (no key found)" if not app.has_key else "dry run for every request" if force_dry
+            else "dry run by default" if dry_run else "live")
     print(f"Taskpenny is running at {url}  ·  {mode}  ·  Ctrl+C to stop")
     print(f"OpenAI-compatible API: base URL {url}v1  ·  model \"taskpenny\""
           + ("  ·  the page and the API need the key you set" if api_key else ""))

@@ -39,18 +39,29 @@ def stats(rows: list[dict]) -> dict:
 
 
 def cost_cell(s: dict) -> str:
+    if not s["base"]:
+        return "-"
     if s["saving"] >= 0:
         return f"**{s['saving']:.0f}% less**"
     return f"**{s['taskpenny'] / s['base']:.1f}x as much**" if s["base"] else "-"
 
 
 def row(name: str, s: dict) -> str:
+    if not s["n"]:
+        return f"| {name} | 0 | - | - | - | - | - | - |"
     return (f"| {name} | {s['n']} | ${s['taskpenny']:.3f} | ${s['base']:.3f} | {cost_cell(s)} | "
             f"**{s['good']:.0f}%** | {s['win']} / {s['tie']} / {s['loss']} | {s['t_taskpenny']:.1f} s / {s['t_base']:.1f} s |")
 
 
 HEAD = ("| Tasks | n | Taskpenny | One model | Taskpenny cost | As good or better | Wins / ties / losses | Time (Taskpenny / one model) |\n"
         "|---|---|---|---|---|---|---|---|")
+
+
+ROUTES = [("Basic and standard (tier 1-2), one model",
+           lambda r: r["taskpenny"]["kind"] != "split" and (r["taskpenny"]["tier"] or 0) <= 2),
+          ("Advanced (tier 3), one model", lambda r: r["taskpenny"]["kind"] != "split" and r["taskpenny"]["tier"] == 3),
+          ("Critical (tier 4), one model", lambda r: r["taskpenny"]["kind"] != "split" and r["taskpenny"]["tier"] == 4),
+          ("Split into parts", lambda r: r["taskpenny"]["kind"] == "split")]
 
 
 def main() -> None:
@@ -73,7 +84,9 @@ def main() -> None:
             "Jev was free on Vercel AI Gateway during these runs. At most, its decisions would have added:", "",
             "| Tasks | n | Taskpenny | Jev at list price, at most | One model | Taskpenny cost: free Jev → Jev at list price |",
             "|---|---|---|---|---|---|"]
-    for name, rs in [("**All**", rows)] + [(NAMES[s], [r for r in rows if r["set"] == s]) for s in ORDER]:
+    groups = ([("**All**", rows)] + [(NAMES[s], [r for r in rows if r["set"] == s]) for s in ORDER]
+              + [(n, [r for r in rows if f(r)]) for n, f in ROUTES])
+    for name, rs in groups:
         ok_rs = [r for r in rs if r["baseline"]["status"] == "done"]
         if not ok_rs:
             continue
@@ -88,11 +101,7 @@ def main() -> None:
         t = sum(r["quality"]["taskpenny"]["total"] for r in gold)
         out += ["", f"Labelling against the true labels: Taskpenny {sum(r['quality']['taskpenny']['correct'] for r in gold)}"
                     f"/{t}, one model {sum(r['quality']['baseline']['correct'] for r in gold)}/{t}."]
-    routes = [("Basic and standard (tier 1-2), one model", lambda r: r["taskpenny"]["kind"] != "split" and (r["taskpenny"]["tier"] or 0) <= 2),
-              ("Advanced (tier 3), one model", lambda r: r["taskpenny"]["kind"] != "split" and r["taskpenny"]["tier"] == 3),
-              ("Critical (tier 4), one model", lambda r: r["taskpenny"]["kind"] != "split" and r["taskpenny"]["tier"] == 4),
-              ("Split into parts", lambda r: r["taskpenny"]["kind"] == "split")]
-    out += ["", "## By the route Taskpenny chose", "", HEAD] + [row(n, stats([r for r in rows if f(r)])) for n, f in routes]
+    out += ["", "## By the route Taskpenny chose", "", HEAD] + [row(n, stats([r for r in rows if f(r)])) for n, f in ROUTES]
     out += ["", "## Tasks used to tune Taskpenny and tasks it never saw", "", HEAD,
             row("Core 60 (seen while tuning)", stats([r for r in rows if r["id"] in core])),
             row("Other tasks (never seen)", stats([r for r in rows if r["id"] not in core]))]

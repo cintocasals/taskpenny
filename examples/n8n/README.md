@@ -19,7 +19,8 @@ not to split it because the parts would not have gone to cheaper models.
    docker network connect ai <your n8n container>
    ```
 
-   Without Docker, run `taskpenny serve --host 0.0.0.0` and use `http://<that machine>:8765/v1` below.
+   Without Docker, set `TASKPENNY_API_KEY`, run `taskpenny serve --host 0.0.0.0` and use
+   `http://<that machine>:8765/v1` below.
 
 2. In n8n, **Import from file** and pick `taskpenny-from-n8n.json`.
 3. Open the **Taskpenny** node and create an **OpenAI** credential: API key = your `TASKPENNY_API_KEY` (any text

@@ -46,7 +46,7 @@ def build() -> str:
     pkg = resources.files("taskpenny")
     page = pkg.joinpath("web/index.html").read_text(encoding="utf-8")
     run = json.loads(pkg.joinpath("demo-run.json").read_text(encoding="utf-8"))
-    data = json.dumps(run, ensure_ascii=False).replace("</", "<\\/")  # cannot close the script tag early
+    data = json.dumps(run, ensure_ascii=False).replace("<", "\\u003c")  # no tag can open or close inside the script
     assert page.count("<script>") == 1, "the page is expected to have one inline script"
     page = page.replace("<script>", SHIM.replace("__RUN__", data) + "<script>", 1)
     page = page.replace("<title>Taskpenny</title>",

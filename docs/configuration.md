@@ -7,15 +7,21 @@
 | `taskpenny run "request"` | Runs one request and prints the answer and the cost receipt. `-` or a pipe reads stdin; `--file` reads a file. |
 | `taskpenny demo` | Replays a real run shipped with the package: every step, model, cost and the answer. No key, no cost. `--full` prints the whole answer, `--instant` skips the pauses. |
 | `taskpenny run --dry-run "request"` | The whole flow with simulated models and placeholder answers, at catalog prices: no key, no cost, no saving claimed. |
-| `taskpenny ui` | The live page in your browser: run requests, watch the task tree, replay and export saved runs. |
-| `taskpenny serve` | The OpenAI-compatible API (`/v1/chat/completions`, `/v1/models`) plus the live page, without opening a browser. |
+| `taskpenny ui` | The live page in your browser: run requests, watch the task tree, replay and export saved runs. `--host`, `--port` (default 8765), `--no-browser`, `--api-key`, `--dry-run` (simulated by default). |
+| `taskpenny serve` | The OpenAI-compatible API (`/v1/chat/completions`, `/v1/responses`, `/v1/models`) plus the live page, without opening a browser. `--host`, `--port`, `--api-key`, `--dry-run` (simulated models for every request). |
 | `taskpenny export runs/<id>.json` | A saved run as a Markdown report. |
 | `taskpenny doctor` | What your keys reach, which model decides, whether each model exists on its provider. Spends nothing. |
 | `taskpenny models [--check]` | The catalog; `--check` compares prices with the live Vercel catalog. |
 
-Common options: `--profile` (which providers may be used), `--max-cost` (budget per run in USD, default 0.50),
+Options of `run`: `--profile` (which providers may be used), `--max-cost` (budget per run in USD, default 0.50),
 `--ceiling` (the strongest model Taskpenny may use), `--no-split`, `--dry-run`, `--models` (your own catalog file),
-`--save-dir` (where runs are saved).
+`--save-dir` (where runs are saved), `--max-depth` (how deep splitting may go, default 3), `--json` (the whole run
+as JSON), `--quiet` (only the answer and the receipt). Options of `demo`: `--speed` (default 4), `--instant`,
+`--full`, `--quiet`.
+
+Through the API, a request may add `"taskpenny": {"max_cost": 0.2, "no_split": true, "dry_run": true}` to its
+body, or send the budget as the header `X-Taskpenny-Max-Cost`. Without either, the budget is 0.50 USD, and it is
+never above `TASKPENNY_MAX_COST`.
 
 ## Environment variables
 
@@ -29,7 +35,8 @@ Common options: `--profile` (which providers may be used), `--max-cost` (budget 
 | `TASKPENNY_LOCAL` | Local Ollama models for basic tasks: `qwen3:4b`, `qwen3:8b@2` (tiers 1 and 2), or `auto`. |
 | `OLLAMA_HOST` | Where Ollama listens (default `http://127.0.0.1:11434`). |
 | `<PROVIDER>_BASE_URL` | Another address for a provider's API, for example `OPENAI_BASE_URL`. |
-| `TASKPENNY_API_KEY` | Key for `taskpenny serve`: API clients send it as a Bearer token, the page asks for it once. Set it whenever others can reach the port. |
+| `TASKPENNY_API_KEY` | Key for `taskpenny serve` and `taskpenny ui`: API clients send it as a Bearer token, the page asks for it once. Set it whenever others can reach the port. |
+| `TASKPENNY_ALLOWED_HOSTS` | Without a key, the server only answers to localhost, IP addresses and one-word names (such as a Docker service); list other host names here, for example `ai.example.lan`. |
 | `TASKPENNY_MAX_COST` | Highest budget a request to `taskpenny serve` may ask for, in USD (default 2). |
 | `TASKPENNY_RUNS_DIR` | Where runs are saved (default `runs`). |
 | `AI_GATEWAY_BASE_URL` | Another address for Vercel AI Gateway. |

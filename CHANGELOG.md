@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.6.0
 
 - `taskpenny demo` replays a real run shipped with the package (every step, model, cost and the answer) instead
   of simulated text, and says which figures are measured and which are estimates. Simulated runs
@@ -15,6 +15,21 @@
 - Images and other non-text content get a clear error instead of being dropped silently.
 - A ready-to-import n8n workflow in `examples/n8n/`.
 - Claude Haiku uses its exact name on Anthropic's own API, so `taskpenny doctor` finds it.
+- Security, from the release review: without a key the server only answers to localhost, IP addresses and one-word
+  names (DNS rebinding); `taskpenny ui` honours `TASKPENNY_API_KEY` and `--api-key`; `serve --dry-run` cannot be
+  switched off from the page; each sign-in gets its own random session token, and signing out ends it; numbers
+  from run files are escaped on the page; the export file name comes from the checked run id; key fragments that
+  a provider echoes in an error are hidden.
+- The API returns an error (502) when a run fails, instead of an empty answer; JSON mode (`response_format`) gets a
+  clear error; content parts without a type, bare strings and assistant refusals are handled.
+- A saved run file that is broken or of the wrong shape no longer breaks the list of runs; runs are listed by file
+  name, and a user's own `demo-run.json` is never mixed up with the example.
+- Budgets: `max_cost: 0` is refused like any other non-positive budget, and `--max-cost` must be a positive number.
+- Benchmark: `--resume` reads results from before the rename; `summarize.py` prints the list-price figures by
+  route too and skips empty rows. The blind check (`results/2026-09-25-blind20.json`) and the provider-key test
+  (`results/2026-09-26-direct-keys.md`) are in the repository.
+- Packaging: Python 3.11 in the classifiers and CI; the source package leaves out the benchmark data and media;
+  a release runs the tests before publishing; hatchling 1.26 or later.
 
 ## v0.5.0
 

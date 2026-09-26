@@ -1,0 +1,151 @@
+{
+ "about": "Blind check of 20 pairs from the first run's 60 task core (results/2026-09-25-core60-before.jsonl), voted by the project's author on 25 September 2026 without knowing which answer was Taskpenny's. A and B are the order shown; person_vote is what was clicked; person and judge say who won.",
+ "summary": {
+  "pairs": 20,
+  "same_verdict_as_judge": 6,
+  "taskpenny_as_good_or_better_person": 18,
+  "taskpenny_as_good_or_better_judge": 14
+ },
+ "pairs": {
+  "ah09": {
+   "A": "baseline",
+   "B": "taskpenny",
+   "judge": "tie",
+   "person_vote": "tie",
+   "person": "tie"
+  },
+  "ah12": {
+   "A": "taskpenny",
+   "B": "baseline",
+   "judge": "tie",
+   "person_vote": "A",
+   "person": "taskpenny"
+  },
+  "ca02": {
+   "A": "taskpenny",
+   "B": "baseline",
+   "judge": "baseline",
+   "person_vote": "A",
+   "person": "taskpenny"
+  },
+  "ca09": {
+   "A": "baseline",
+   "B": "taskpenny",
+   "judge": "tie",
+   "person_vote": "B",
+   "person": "taskpenny"
+  },
+  "es07": {
+   "A": "taskpenny",
+   "B": "baseline",
+   "judge": "baseline",
+   "person_vote": "A",
+   "person": "taskpenny"
+  },
+  "es09": {
+   "A": "baseline",
+   "B": "taskpenny",
+   "judge": "baseline",
+   "person_vote": "tie",
+   "person": "tie"
+  },
+  "mp01": {
+   "A": "baseline",
+   "B": "taskpenny",
+   "judge": "tie",
+   "person_vote": "tie",
+   "person": "tie"
+  },
+  "mp09": {
+   "A": "taskpenny",
+   "B": "baseline",
+   "judge": "baseline",
+   "person_vote": "tie",
+   "person": "tie"
+  },
+  "mt102": {
+   "A": "baseline",
+   "B": "taskpenny",
+   "judge": "baseline",
+   "person_vote": "B",
+   "person": "taskpenny"
+  },
+  "mt106": {
+   "A": "taskpenny",
+   "B": "baseline",
+   "judge": "tie",
+   "person_vote": "A",
+   "person": "taskpenny"
+  },
+  "mt107": {
+   "A": "taskpenny",
+   "B": "baseline",
+   "judge": "tie",
+   "person_vote": "A",
+   "person": "taskpenny"
+  },
+  "mt117": {
+   "A": "baseline",
+   "B": "taskpenny",
+   "judge": "tie",
+   "person_vote": "A",
+   "person": "baseline"
+  },
+  "mt140": {
+   "A": "taskpenny",
+   "B": "baseline",
+   "judge": "tie",
+   "person_vote": "tie",
+   "person": "tie"
+  },
+  "mt141": {
+   "A": "taskpenny",
+   "B": "baseline",
+   "judge": "tie",
+   "person_vote": "tie",
+   "person": "tie"
+  },
+  "mt146": {
+   "A": "taskpenny",
+   "B": "baseline",
+   "judge": "tie",
+   "person_vote": "tie",
+   "person": "tie"
+  },
+  "mt158": {
+   "A": "taskpenny",
+   "B": "baseline",
+   "judge": "tie",
+   "person_vote": "tie",
+   "person": "tie"
+  },
+  "mt81": {
+   "A": "taskpenny",
+   "B": "baseline",
+   "judge": "taskpenny",
+   "person_vote": "tie",
+   "person": "tie"
+  },
+  "mt90": {
+   "A": "baseline",
+   "B": "taskpenny",
+   "judge": "baseline",
+   "person_vote": "B",
+   "person": "taskpenny"
+  },
+  "mt92": {
+   "A": "taskpenny",
+   "B": "baseline",
+   "judge": "tie",
+   "person_vote": "B",
+   "person": "baseline"
+  },
+  "mt94": {
+   "A": "baseline",
+   "B": "taskpenny",
+   "judge": "taskpenny",
+   "person_vote": "tie",
+   "person": "tie"
+  }
+ }
+}

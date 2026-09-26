@@ -20,12 +20,24 @@ def _text(content: Any) -> str:
         return ""
     if isinstance(content, str):
         return content
+    if isinstance(content, dict):  # one part on its own
+        content = [content]
     if isinstance(content, list):  # content parts: text only; images and files are refused, not silently dropped
-        kinds = {p.get("type") for p in content if isinstance(p, dict)} - {"text", "input_text", "output_text"}
-        if kinds:
-            raise BadRequest(f"Taskpenny does not support {', '.join(sorted(map(str, kinds)))} content yet: "
-                             "send text")
-        return "\n".join(str(p.get("text", "")) for p in content if isinstance(p, dict))
+        texts = []
+        for part in content:
+            if isinstance(part, str):
+                texts.append(part)
+                continue
+            if not isinstance(part, dict):
+                raise BadRequest("message content parts must be text or objects")
+            kind = part.get("type")
+            if kind in (None, "text", "input_text", "output_text") and "text" in part:
+                texts.append(str(part.get("text") or ""))
+            elif kind == "refusal":  # an earlier assistant refusal: nothing to pass on
+                continue
+            else:
+                raise BadRequest(f"Taskpenny does not support {kind or 'this kind of'} content yet: send text")
+        return "\n".join(texts)
     return str(content)
 
 

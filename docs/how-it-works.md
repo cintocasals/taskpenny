@@ -2,7 +2,7 @@
 
 Taskpenny turns one request into an answer in five stages. Every decision in it is a closed question (split or
 not, which tier, is this result good enough), and closed questions are what Jev, TypeSafe AI's decision model,
-answers well and cheaply: about 3 cents per thousand decisions, with a probability and a confidence for each.
+answers well and cheaply: about 4 cents per thousand decisions at its list price (about 1,000 tokens each in our benchmark), with a probability and a confidence for each.
 Language models only write.
 
 ## 1. The gate
@@ -67,8 +67,9 @@ request; if it scores under 0.4, a cheap model writes only what is missing.
 
 ## Money
 
-- A budget per run (0.50 USD by default). Before each call Taskpenny reserves its worst case; a call that does not fit
-  is not made, and the run ends as partial with what it has.
+- A budget per run (0.50 USD by default). Before each model call Taskpenny reserves an estimate (the prompt plus
+  three quarters of the output it allows); a call that does not fit is not made, and the run ends as partial with
+  what it has. Jev's calls are not reserved, so a run can end slightly above its budget.
 - The receipt adds up planning, decisions, work, checks and assembly. Through Vercel AI Gateway every cost is
   the one the gateway reports; with direct keys it is worked out from the catalog prices.
 - The comparison on the receipt is an estimate: the same request sent once to the baseline model, with an answer

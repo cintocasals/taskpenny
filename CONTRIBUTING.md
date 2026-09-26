@@ -33,7 +33,7 @@ taskpenny demo         # replays a real run: no key, no cost
 ## Pull requests
 
 Describe what changes for the person using Taskpenny, how you tested it, and, if it touches cost or quality, what
-the numbers were. CI runs the tests on Python 3.10, 3.12 and 3.13 and builds the Docker image.
+the numbers were. CI runs the tests on Python 3.10, 3.11, 3.12 and 3.13 and builds the Docker image.
 
 ## Releases
 

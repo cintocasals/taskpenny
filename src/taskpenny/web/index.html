@@ -346,7 +346,7 @@ function renderTree(){
     const b = document.createElement("button"); b.className = "card" + (selected === id ? " sel" : ""); b.type = "button";
     const who = n.kind === "jev" || n.jev ? '<span class="chip jev">' + L.jev + "</span>" :
       (n.model ? '<span class="chip">' + (n.kind === "split" ? esc(L.assembleBy) + " " : "") + esc(short(n.model)) + "</span>" : "");
-    const tier = n.tier ? '<span class="chip" title="' + esc(L.tipTier) + '">' + esc(L.tierL) + " " + n.tier + "</span>" : "";
+    const tier = n.tier ? '<span class="chip" title="' + esc(L.tipTier) + '">' + esc(L.tierL) + " " + esc(n.tier) + "</span>" : "";
     const split = n.kind === "split" ? '<span class="chip">' + esc(L.split) + " → " + n.children.length + "</span>" +
       (n.planModel ? '<span class="chip">' + esc(L.planBy) + " " + esc(short(n.planModel)) + "</span>" : "") : "";
     const title = id === "root" ? L.rootTitle : n.title;
@@ -366,13 +366,13 @@ function renderDetail(){
   const g = n.gate;
   let h = "<dl>";
   h += "<dt>" + esc(L.status) + "</dt><dd>" + esc(L[n.status] || n.status) + "</dd>";
-  if (n.model) h += "<dt>" + esc(L.model) + "</dt><dd>" + esc(n.model) + (n.tier ? " · T" + n.tier : "") + "</dd>";
+  if (n.model) h += "<dt>" + esc(L.model) + "</dt><dd>" + esc(n.model) + (n.tier ? " · T" + esc(n.tier) : "") + "</dd>";
   if (n.cost) h += "<dt>" + esc(L.cost) + "</dt><dd>" + money(n.cost) + "</dd>";
   const ty = k => (L.types && L.types[k]) || k;
-  if (g) h += "<dt>" + esc(L.gate) + "</dt><dd><span title=\"" + esc(L.tipSplit) + "\">" + esc(L.split) + " " + (g.split * 100).toFixed(0) + "%</span> · <span title=\"" + esc(L.tipTier) + "\">" + esc(L.tier) + " " + g.tier_raw + "</span>" +
+  if (g) h += "<dt>" + esc(L.gate) + "</dt><dd><span title=\"" + esc(L.tipSplit) + "\">" + esc(L.split) + " " + esc((Number(g.split) * 100).toFixed(0)) + "%</span> · <span title=\"" + esc(L.tipTier) + "\">" + esc(L.tier) + " " + esc(g.tier_raw) + "</span>" +
     (g.tier_confidence != null ? " <span title=\"" + esc(L.tipConf) + "\">(" + esc(L.conf) + " " + g.tier_confidence.toFixed(2) + ")</span>" : "") +
     (g.raised ? " · " + esc(L.raised) : "") + (g.floored ? " · " + esc(L.floored) : "") + " · " + esc(L.type) + " " + esc(ty(g.task_type)) + " · " + esc(L.answerType) + " " + esc(ty(g.answer_type)) + "</dd>";
-  if (n.attempts && n.attempts.length) h += "<dt>" + esc(L.attempts) + "</dt><dd title=\"" + esc(L.tipCheck) + "\">" + n.attempts.map(a => esc(short(a.model)) + " · " + esc(L.tierL) + " " + a.tier + " → " + a.ok_probability).join(" · ") + "</dd>";
+  if (n.attempts && n.attempts.length) h += "<dt>" + esc(L.attempts) + "</dt><dd title=\"" + esc(L.tipCheck) + "\">" + n.attempts.map(a => esc(short(a.model)) + " · " + esc(L.tierL) + " " + esc(a.tier) + " → " + esc(a.ok_probability)).join(" · ") + "</dd>";
   h += "</dl>";
   if (n.prompt) h += '<div><div class="label">' + esc(L.prompt) + '</div><div class="box">' + esc(n.prompt) + "</div></div>";
   if (n.result) h += '<div><div class="label">' + esc(L.result) + '</div><div class="box rich">' + md(n.result) + "</div></div>";
@@ -441,7 +441,7 @@ function renderFlow(){
   const parts = [[c("gate"), L.stages.gate], [c("plan"), L.stages.plan], [models, L.stages.run], [jevs, L.stages.jevs],
     [c("verify"), L.stages.checks], [c("aggregate"), L.stages.assemble], [c("final_check"), L.stages.final]].filter(p => p[0]);
   box.innerHTML = parts.map(p => "<span>" + esc(p[1]) + ": <b>" + p[0] + "</b></span>").join("") +
-    (S.receipt ? "<span>" + esc(L.stages.calls) + ": <b>" + S.receipt.calls + "</b></span>" : "");
+    (S.receipt ? "<span>" + esc(L.stages.calls) + ": <b>" + esc(S.receipt.calls) + "</b></span>" : "");
   fb.hidden = false;
 }
 function renderReceipt(){
@@ -562,7 +562,7 @@ async function init(){
     return;
   }
   (info.profiles || ["all"]).forEach(p => { const o = document.createElement("option"); o.value = o.textContent = p; $("profile").append(o); });
-  $("dry").checked = !!info.dry_run_default; $("dry").disabled = !info.has_key;
+  $("dry").checked = !!info.dry_run_default; $("dry").disabled = !info.has_key || !!info.force_dry;
   lang = pickLang(); applyLang();
   $("lang").addEventListener("change", e => { lang = e.target.value; try { localStorage.setItem("taskpenny.lang", lang); } catch(x) {} applyLang(); });
   $("dry").addEventListener("change", () => { $("mode").textContent = $("dry").checked || !info.has_key ? L.dryMode : L.live; });

@@ -2,7 +2,9 @@
 
 Taskpenny against **Claude Sonnet 5** answering every task on its own, on 143 tasks (142 compared: the baseline
 failed on one). Judge: **Gemini 3.1 Pro**, from a third provider, comparing each pair twice with the order swapped.
-Costs are the ones Vercel AI Gateway reported for each call. Code: commit `ada421c`.
+Costs are the ones Vercel AI Gateway reported for each call. Jev, the model that makes Taskpenny's decisions, was
+free on the gateway during these runs, so the tables count it at $0; [with Jev at its list
+price](#if-jev-is-paid-at-its-list-price) the same figures drop by up to 4 points. Code: commit `ada421c`.
 
 Taskpenny was called SIAC when these runs were made, so the raw files use that name; the scripts read them as
 they are.
@@ -64,7 +66,7 @@ Catalan and Spanish requests, where Taskpenny used Opus or split the work.
   the judge said 14, and the two gave the same verdict on 6. In the four pairs where they disagreed outright, Taskpenny's
   answer was the short one: the judge preferred Sonnet's longer answer, the author preferred Taskpenny's because it did
   only what was asked. Twenty votes from one person are too few to correct the judge, so the figures here are the
-  judge's.
+  judge's. Votes and key: `results/2026-09-25-blind20.json`.
 - **Sonnet 5 is a strong, mid-priced baseline.** Taskpenny's catalog goes above it (Claude Opus for critical tasks), so
   on critical tasks Taskpenny spends more by design. Against Opus as the baseline the picture would change, but Opus
   refused most calls on the day.
@@ -108,7 +110,12 @@ model went to Jev or to the planner, so these are upper bounds. `summarize.py` p
 | **The 50 new tasks** | 50 | $0.0078 | 53.3% less → **52.5% less** |
 | Arena-Hard (new sample) | 40 | $0.0042 | 52.4% less → **51.9% less** |
 | Four asks in one message (new) | 10 | $0.0036 | 60.0% less → **56.9% less** |
+| Basic and standard (tier 1-2), new tasks | 26 | $0.0031 | 90.0% less → **89.2% less** |
 | **First run, all tasks** | 142 | $0.0180 | 14.2% less → **12.9% less** |
+| Basic and standard (tier 1-2), first run | 103 | $0.0077 | 93.3% less → **92.2% less** |
+| Advanced (tier 3), first run | 16 | $0.0016 | 12.1% less → **11.4% less** |
+| Critical (tier 4), first run | 8 | $0.0009 | 1.99x → **2.00x as much** |
+| Split into parts, first run | 15 | $0.0079 | 2.20x → **2.22x as much** |
 | Label 10 messages | 10 | $0.0007 | 97.9% less → **95.3% less** |
 
 Jev matters most where the language models are cheapest: labelling and requests split into parts.

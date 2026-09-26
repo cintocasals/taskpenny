@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import math
 import os
 import sys
 from pathlib import Path
@@ -175,9 +176,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--version", action="version", version=f"taskpenny {__version__}")
     sub = p.add_subparsers(dest="cmd", required=True)
 
+    def usd(text: str) -> float:
+        v = float(text)
+        if not math.isfinite(v) or v <= 0:
+            raise argparse.ArgumentTypeError("a positive number of USD")
+        return v
+
     def run_opts(sp):
         sp.add_argument("--profile", default="all", help="which providers may be used (see models.yaml)")
-        sp.add_argument("--max-cost", type=float, default=0.50, help="budget per run in USD (default 0.50)")
+        sp.add_argument("--max-cost", type=usd, default=0.50, help="budget per run in USD (default 0.50)")
         sp.add_argument("--max-depth", type=int, default=3)
         sp.add_argument("--no-split", action="store_true", help="route the whole request to one model")
         sp.add_argument("--models", help="path to a models.yaml of your own")
@@ -201,6 +208,8 @@ def main(argv: list[str] | None = None) -> int:
     u.add_argument("--host", default="127.0.0.1")
     u.add_argument("--dry-run", action="store_true", help="simulated models by default")
     u.add_argument("--no-browser", action="store_true")
+    u.add_argument("--api-key", default=os.environ.get("TASKPENNY_API_KEY"),
+                   help="require this key from the page and the API (better: set TASKPENNY_API_KEY)")
     u.add_argument("--models", help="path to a models.yaml of your own")
     u.add_argument("--ceiling", help="the strongest model Taskpenny may use")
     u.add_argument("--save-dir", default=os.environ.get("TASKPENNY_RUNS_DIR", "runs"))
@@ -209,7 +218,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--host", default="127.0.0.1")
     s.add_argument("--dry-run", action="store_true", help="simulated models for every request")
     s.add_argument("--api-key", default=os.environ.get("TASKPENNY_API_KEY"),
-                   help="require this key from clients (Authorization: Bearer ...)")
+                   help="require this key from clients (better: set TASKPENNY_API_KEY, which stays out of `ps`)")
     s.add_argument("--models", help="path to a models.yaml of your own")
     s.add_argument("--ceiling", help="the strongest model Taskpenny may use")
     s.add_argument("--save-dir", default=os.environ.get("TASKPENNY_RUNS_DIR", "runs"))
@@ -242,7 +251,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd in ("ui", "serve"):
         from .server import serve
         serve(args.host, args.port, runs_dir=args.save_dir, dry_run=args.dry_run, models=args.models,
-              open_browser=args.cmd == "ui" and not args.no_browser, api_key=getattr(args, "api_key", None))
+              open_browser=args.cmd == "ui" and not args.no_browser, api_key=args.api_key,
+              force_dry=args.cmd == "serve" and args.dry_run)
         return 0
     if args.cmd == "demo":
         from .demo import main as demo

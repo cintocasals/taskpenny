@@ -175,6 +175,8 @@ class Engine:
                 pass
 
     def _spend(self, node: Node, role: str, usage: Usage, model: str) -> None:
+        if usage.cost_source == "simulated":
+            self.simulated = True
         node.cost += usage.cost
         node.tokens_in += usage.tokens_in
         node.tokens_out += usage.tokens_out
@@ -243,6 +245,7 @@ class Engine:
         self.events: list[dict] = []
         self.nodes: dict[str, Node] = {}
         self.cost, self.calls, self.tokens_in, self.tokens_out = 0.0, 0, 0, 0
+        self.simulated = False
         self.timeouts = 0  # calls that got no answer in time: the provider may still bill them
         self._pre_gates: dict[str, Gate] = {}  # sub-task gates already asked while deciding whether a split pays
         self.reserved = 0.0
@@ -543,8 +546,10 @@ class Engine:
         factor = max(1.0, self.work_out / self.work_visible) if self.work_visible else 1.0
         tin, tout = estimate_tokens(request) + 40, int(estimate_tokens(answer) * factor)
         baseline_cost = base.cost(tin, tout)
-        saving = (1 - self.cost / baseline_cost) * 100 if baseline_cost > 0 else None
+        # a simulated run measured nothing, so it claims no saving
+        saving = (1 - self.cost / baseline_cost) * 100 if baseline_cost > 0 and not self.simulated else None
         return {
+            "simulated": self.simulated,
             "total_cost": round(self.cost, 6),
             "calls": self.calls,
             "timeouts": self.timeouts,

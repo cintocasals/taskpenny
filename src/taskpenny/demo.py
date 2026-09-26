@@ -84,14 +84,15 @@ def summary(run: dict, full: bool = False, out=None) -> None:
         most = max(0, r.get("tokens_in", 0) - llm_in) * price / 1e6
         print(f"  Jev's decisions were free on Vercel AI Gateway that day. At its list price (${price:g} per million",
               file=out)
-        print(f"  tokens) they would have added ${most:.4f} at most.", file=out)
+        print(f"  input tokens; output is free) they would have added ${most:.4f} at most.", file=out)
 
 
 def main(speed: float = 4.0, instant: bool = False, full: bool = False, quiet: bool = False) -> int:
     from .cli import Printer
 
     run = load_demo()
-    print(f"Replaying a real Taskpenny run from {run.get('started_at', '')[:10]} at {speed:g}x: no key, no cost.\n"
+    pace = "" if instant or quiet else f" at {speed:g}x"
+    print(f"Replaying a real Taskpenny run from {run.get('started_at', '')[:10]}{pace}: no key, no cost.\n"
           f"Request: {run.get('request', '')}\n", file=sys.stderr)
     replay(run, None if quiet else Printer(), speed=speed, instant=instant or quiet)
     summary(run, full=full)

@@ -364,8 +364,10 @@ async def test_empty_answer_moves_to_next_model(catalog):
 
 def test_benchmark_label_scoring():
     import importlib.util
-    from pathlib import Path
-    spec = importlib.util.spec_from_file_location("bench_run", Path(__file__).parent.parent / "bench/public/run.py")
+    path = Path(__file__).parent.parent / "bench/public/run.py"
+    if not path.exists():
+        pytest.skip("the benchmark lives in the repository, not in the source package")
+    spec = importlib.util.spec_from_file_location("bench_run", path)
     run = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(run)
     gold = {"1": "exchange rate", "2": "change pin", "3": "activate my card"}
@@ -687,6 +689,8 @@ def test_responses_api(tmp_path, monkeypatch):
 def test_static_demo_page_is_built_and_up_to_date():
     import importlib.util
     root = Path(__file__).resolve().parents[1]
+    if not (root / "docs" / "demo" / "build.py").exists():
+        pytest.skip("the demo page lives in the repository, not in the source package")
     spec = importlib.util.spec_from_file_location("demo_build", root / "docs" / "demo" / "build.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -708,3 +712,158 @@ def test_images_are_refused_not_dropped():
             {"type": "input_text", "text": "Describe it"}, {"type": "input_image", "image_url": "https://x/y.png"}]}]})
     ok = oai.request_from_responses({"input": [{"role": "user", "content": [{"type": "input_text", "text": "Hi"}]}]})
     assert ok == "Hi"
+
+
+# ------------------------------------------------------------------ release review: security and robustness
+def test_ui_honours_the_key(monkeypatch):
+    from taskpenny import cli, server
+    seen = {}
+    monkeypatch.setattr(server, "serve", lambda *a, **k: seen.update(k))
+    monkeypatch.setenv("TASKPENNY_API_KEY", "secret")
+    assert cli.main(["ui", "--no-browser"]) == 0
+    assert seen["api_key"] == "secret" and seen["force_dry"] is False
+    assert cli.main(["serve", "--dry-run"]) == 0 and seen["force_dry"] is True
+
+
+def test_keyless_server_answers_only_to_local_names(tmp_path, monkeypatch):
+    import httpx
+
+    from taskpenny.server import App
+    monkeypatch.delenv("AI_GATEWAY_API_KEY", raising=False)
+    httpd, base = _serve(App(Catalog.load(), tmp_path, dry_run_default=True))
+    try:
+        assert httpx.get(base + "/api/runs").status_code == 200
+        for host in ("localhost:8765", "taskpenny:8765", "192.168.1.5:8765"):
+            assert httpx.get(base + "/api/runs", headers={"Host": host}).status_code == 200, host
+        evil = {"Host": "attacker.example:8765"}  # a page whose domain was pointed at 127.0.0.1
+        assert httpx.get(base + "/api/runs", headers=evil).status_code == 403
+        assert httpx.post(base + "/api/run", json={"request": "hi"}, headers=evil).status_code == 403
+        assert httpx.get(base + "/health", headers=evil).status_code == 200
+    finally:
+        httpd.shutdown()
+
+
+def test_serve_dry_run_cannot_be_switched_off(tmp_path, monkeypatch):
+    import httpx
+
+    from taskpenny.server import App
+    monkeypatch.setenv("AI_GATEWAY_API_KEY", "not-used")  # a key is set, yet nothing may spend
+    app = App(Catalog.load(), tmp_path, dry_run_default=True, force_dry=True)
+    httpd, base = _serve(app)
+    try:
+        assert httpx.get(base + "/api/info").json()["force_dry"] is True
+        r = httpx.post(base + "/api/run", json={"request": "hi", "dry_run": False}).json()
+        assert r["dry_run"] is True
+        app.wait(r["id"], timeout=30)
+    finally:
+        httpd.shutdown()
+
+
+def test_sessions_end_on_sign_out(tmp_path, monkeypatch):
+    import httpx
+
+    from taskpenny.server import App
+    monkeypatch.delenv("AI_GATEWAY_API_KEY", raising=False)
+    httpd, base = _serve(App(Catalog.load(), tmp_path, dry_run_default=True, api_key="secret"))
+    try:
+        r = httpx.post(base + "/api/login", json={"key": "secret"})
+        cookie = r.headers["set-cookie"]
+        assert "SameSite=Strict" in cookie and "Secure" not in cookie
+        token = cookie.split(";")[0]
+        assert httpx.get(base + "/api/info", headers={"Cookie": token}).status_code == 200
+        assert httpx.post(base + "/api/logout", json={}, headers={"Cookie": token}).status_code == 200
+        assert httpx.get(base + "/api/info", headers={"Cookie": token}).status_code == 401  # the stolen copy dies too
+        https = httpx.post(base + "/api/login", json={"key": "secret"}, headers={"X-Forwarded-Proto": "https"})
+        assert "Secure" in https.headers["set-cookie"]
+    finally:
+        httpd.shutdown()
+
+
+def test_api_reports_a_failed_run_and_refuses_json_mode(tmp_path, monkeypatch):
+    import httpx
+
+    from taskpenny import server
+    from taskpenny.gateway import GatewayError
+    from taskpenny.simulate import SimulatedGateway
+
+    class Refusing(SimulatedGateway):
+        async def chat(self, *a, **k):
+            raise GatewayError(401, "no access")
+    monkeypatch.delenv("AI_GATEWAY_API_KEY", raising=False)
+    monkeypatch.setattr(server, "SimulatedGateway", Refusing)
+    httpd, base = _serve(server.App(Catalog.load(), tmp_path, dry_run_default=True))
+    try:
+        body = {"model": "taskpenny", "messages": [{"role": "user", "content": "Write a haiku about rain."}]}
+        r = httpx.post(base + "/v1/chat/completions", json=body, timeout=60)
+        assert r.status_code == 502 and r.json()["error"]["type"] == "upstream_error"
+        j = httpx.post(base + "/v1/chat/completions", json=body | {"response_format": {"type": "json_object"}})
+        assert j.status_code == 400 and "JSON mode" in j.json()["error"]["message"]
+        zero = httpx.post(base + "/v1/chat/completions", json=body | {"taskpenny": {"max_cost": 0}})
+        assert zero.status_code == 400
+    finally:
+        httpd.shutdown()
+
+
+def test_broken_run_files_and_the_example(tmp_path, monkeypatch):
+    import httpx
+
+    from taskpenny.demo import load_demo
+    from taskpenny.server import App
+    monkeypatch.delenv("AI_GATEWAY_API_KEY", raising=False)
+    (tmp_path / "list.json").write_text("[1, 2]")
+    (tmp_path / "nullreq.json").write_text('{"request": null, "receipt": null}')
+    (tmp_path / "evil.json").write_text(json.dumps({"id": 'x"\r\nSet-Cookie: pwned=1', "request": "hi", "nodes": {},
+                                                    "events": [], "receipt": {}}))
+    app = App(Catalog.load(), tmp_path, dry_run_default=True)
+    httpd, base = _serve(app)
+    try:
+        runs = httpx.get(base + "/api/runs").json()
+        ids = [r["id"] for r in runs]
+        assert "nullreq" in ids and "list" not in ids and runs[-1].get("example")
+        assert httpx.get(base + "/api/runs/list").status_code == 404
+        exp = httpx.get(base + "/api/export/evil")
+        assert "set-cookie" not in exp.headers and 'filename="taskpenny-evil.md"' in exp.headers["content-disposition"]
+        # a user's own file with the example's name is theirs: no example entry, and it opens their file
+        (tmp_path / f"{load_demo()['id']}.json").write_text('{"request": "mine", "events": []}')
+        runs = httpx.get(base + "/api/runs").json()
+        assert not any(r.get("example") for r in runs)
+        assert app.load_run(load_demo()["id"])["request"] == "mine"
+    finally:
+        httpd.shutdown()
+
+
+async def test_a_simulated_run_claims_no_saving(catalog):
+    from taskpenny.simulate import SAMPLE_PROMPT
+    res = await Engine(SimulatedGateway(catalog, latency=(0, 0.001)), catalog).run(SAMPLE_PROMPT)
+    assert res.receipt["simulated"] is True and res.receipt["saving_pct"] is None
+
+
+def test_content_parts():
+    import taskpenny.openai_api as oai
+    assert oai.request_from_messages([{"role": "user", "content": [{"text": "hi"}]}]) == "hi"
+    assert oai.request_from_messages([{"role": "user", "content": {"type": "text", "text": "hi"}}]) == "hi"
+    assert oai.request_from_messages([{"role": "user", "content": ["hi"]}]) == "hi"
+    hist = [{"role": "user", "content": "a"}, {"role": "assistant", "content": [{"type": "refusal", "refusal": "no"}]},
+            {"role": "user", "content": "b"}]
+    assert oai.request_from_messages(hist).endswith("b")
+    with pytest.raises(oai.BadRequest):
+        oai.request_from_messages([{"role": "user", "content": [3]}])
+
+
+def test_published_tables_are_reproduced():
+    import subprocess
+    import sys
+    root = Path(__file__).resolve().parents[1]
+    if not (root / "bench" / "public" / "results").exists():
+        pytest.skip("the benchmark lives in the repository, not in the source package")
+    out = subprocess.run([sys.executable, str(root / "bench/public/summarize.py"),
+                          str(root / "bench/public/results/2026-09-25-holdout50.jsonl")],
+                         capture_output=True, text=True, check=True).stdout
+    assert "| **All** | 50 | $0.446 | $0.955 | **53% less** | **82%** | 11 / 30 / 9 |" in out
+    assert "53.3% less → **52.5% less**" in out
+
+
+def test_provider_errors_never_carry_key_fragments():
+    from taskpenny.gateway import GatewayError
+    e = GatewayError(401, "Incorrect API key provided: sk-proj-****abcd. Check your key.")
+    assert "abcd" not in str(e) and "[key hidden]" in str(e)

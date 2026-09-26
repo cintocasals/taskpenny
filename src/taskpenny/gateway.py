@@ -9,6 +9,7 @@ import asyncio
 import json
 import os
 import random
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, Protocol
@@ -22,8 +23,13 @@ DEFAULT_BASE_URL = "https://ai-gateway.vercel.sh"
 RETRY_STATUS = {408, 409, 425, 429, 500, 502, 503, 504, 529}
 
 
+KEY_LIKE = re.compile(r"\b(?:sk-|sk_|AIza|vck_|gh[pousr]_)[\w*.-]+")
+
+
 class GatewayError(RuntimeError):
     def __init__(self, status: int, message: str, body: Any = None):
+        # providers sometimes echo part of a wrong key; it must not reach run files, logs or API answers
+        message = KEY_LIKE.sub("[key hidden]", str(message))
         super().__init__(f"{status}: {message}")
         self.status = status
         self.body = body

@@ -433,7 +433,7 @@ async def main():
             return r
     await asyncio.gather(*(guarded(t) for t in tasks))
     await gw.aclose()
-    rows = [json.loads(line) for line in jl.read_text(encoding="utf-8").splitlines() if line] if jl.exists() else []
+    rows = read_results(jl) if jl.exists() else []  # rows from before the rename are read too
     await budget.refresh(force=True)
     md = report(rows, args)
     if budget.start is not None:
