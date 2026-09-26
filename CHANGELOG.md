@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- `taskpenny demo` replays a real run shipped with the package (every step, model, cost and the answer) instead
+  of simulated text, and says which figures are measured and which are estimates. Simulated runs
+  (`taskpenny run --dry-run`) no longer show a saving.
+- A demo page for the browser (`docs/demo/`): the live page replaying the same real run, with no server, no key
+  and no cost. `taskpenny ui` and `taskpenny serve` also list that run as an example to replay.
+- The live page labels the comparison with one strong model and the saving as estimates.
+- `RESULTS.md` adds the costs with Jev at its list price (it was free during the runs): 52.5% cheaper on the 50
+  new tasks instead of 53.3%, 95% on labelling instead of 98%. `summarize.py` prints them.
+- The README leads with the measured results and tries each provider key on its own (OpenAI, Anthropic, Gemini:
+  all answered in full without Vercel).
+- Images and other non-text content get a clear error instead of being dropped silently.
+- A ready-to-import n8n workflow in `examples/n8n/`.
+- Claude Haiku uses its exact name on Anthropic's own API, so `taskpenny doctor` finds it.
+
 ## v0.5.0
 
 - SIAC is now **Taskpenny**: the package and the command are `taskpenny`, the settings are `TASKPENNY_*` (they

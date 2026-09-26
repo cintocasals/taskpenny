@@ -1,0 +1,114 @@
+{
+  "name": "Taskpenny from n8n",
+  "nodes": [
+    {
+      "id": "6c1d4c52-2f0a-4a8e-9a61-3f3f3b1f0a01",
+      "name": "Run it",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "6c1d4c52-2f0a-4a8e-9a61-3f3f3b1f0a02",
+      "name": "Request",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        480,
+        300
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r1",
+              "name": "request",
+              "type": "string",
+              "value": "Prepare a workshop on AI for small businesses: 1) write a short description of the workshop, 2) suggest three titles for a LinkedIn post, 3) label these comments as positive, negative or neutral: \"Loved it\", \"Too expensive\", \"Fine\"."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "6c1d4c52-2f0a-4a8e-9a61-3f3f3b1f0a03",
+      "name": "Taskpenny answer",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        720,
+        300
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.request }}"
+      }
+    },
+    {
+      "id": "6c1d4c52-2f0a-4a8e-9a61-3f3f3b1f0a04",
+      "name": "Taskpenny",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        720,
+        520
+      ],
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "taskpenny"
+        },
+        "responsesApiEnabled": false,
+        "options": {
+          "baseURL": "http://taskpenny:8765/v1",
+          "timeout": 900000,
+          "maxRetries": 0
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Run it": {
+      "main": [
+        [
+          {
+            "node": "Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Request": {
+      "main": [
+        [
+          {
+            "node": "Taskpenny answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Taskpenny": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Taskpenny answer",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

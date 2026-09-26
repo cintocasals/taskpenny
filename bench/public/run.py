@@ -116,6 +116,15 @@ def read_results(path) -> list[dict]:
     return rows
 
 
+def jev_list_cost(row: dict, price_per_million: float) -> float:
+    """What Jev's decisions in this row would have cost at its list price. Jev was free on Vercel AI Gateway during
+    these runs. The receipt counts every input token; those not spent by a language model call went to Jev or to
+    the planner, so this is an upper bound (Jev's output is free)."""
+    run = row["taskpenny"].get("run") or {}
+    llm = sum(e.get("tokens_in", 0) for e in run.get("events") or [] if e.get("type") == "llm_call")
+    return max(0, (run.get("receipt") or {}).get("tokens_in", 0) - llm) * price_per_million / 1e6
+
+
 def core_set(tasks: list[dict], seed: int) -> list[dict]:
     """A smaller set with the same shape: 5 MT-Bench tasks per category and a few of every other set."""
     rng = random.Random(seed)

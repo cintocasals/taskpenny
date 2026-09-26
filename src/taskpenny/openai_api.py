@@ -20,8 +20,12 @@ def _text(content: Any) -> str:
         return ""
     if isinstance(content, str):
         return content
-    if isinstance(content, list):  # content parts: keep the text, images are not supported yet
-        return "\n".join(str(p.get("text", "")) for p in content if isinstance(p, dict) and p.get("type") == "text")
+    if isinstance(content, list):  # content parts: text only; images and files are refused, not silently dropped
+        kinds = {p.get("type") for p in content if isinstance(p, dict)} - {"text", "input_text", "output_text"}
+        if kinds:
+            raise BadRequest(f"Taskpenny does not support {', '.join(sorted(map(str, kinds)))} content yet: "
+                             "send text")
+        return "\n".join(str(p.get("text", "")) for p in content if isinstance(p, dict))
     return str(content)
 
 
@@ -134,11 +138,7 @@ def request_from_responses(body: dict) -> str:
                 continue
             if item.get("type") not in (None, "message"):
                 raise BadRequest(f"input items of type {item.get('type')!r} are not supported yet")
-            content = item.get("content")
-            if isinstance(content, list):  # parts: input_text / output_text / text
-                content = "\n".join(str(p.get("text", "")) for p in content
-                                    if isinstance(p, dict) and p.get("type") in ("input_text", "output_text", "text"))
-            messages.append({"role": item.get("role") or "user", "content": content or ""})
+            messages.append({"role": item.get("role") or "user", "content": _text(item.get("content"))})
     else:
         raise BadRequest("input must be a string or a list of messages")
     return request_from_messages(messages)

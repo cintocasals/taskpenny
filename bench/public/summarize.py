@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from run import core_set, read_results  # noqa: E402  (same folder)
+from run import core_set, jev_list_cost, read_results  # noqa: E402  (same folder)
 
 HERE = Path(__file__).parent
 ORDER = ["mtbench", "hard", "multi", "classify", "ca", "es"]
@@ -67,6 +67,22 @@ def main() -> None:
         rs = [r for r in rows if r["set"] == s]
         if rs:
             out.append(row(NAMES[s], stats(rs)))
+    from taskpenny.catalog import Catalog
+    price = Catalog.load().decider.price_in
+    out += ["", f"## With Jev at its list price (${price:g} per million input tokens)", "",
+            "Jev was free on Vercel AI Gateway during these runs. At most, its decisions would have added:", "",
+            "| Tasks | n | Taskpenny | Jev at list price, at most | One model | Taskpenny cost: free Jev → Jev at list price |",
+            "|---|---|---|---|---|---|"]
+    for name, rs in [("**All**", rows)] + [(NAMES[s], [r for r in rows if r["set"] == s]) for s in ORDER]:
+        ok_rs = [r for r in rs if r["baseline"]["status"] == "done"]
+        if not ok_rs:
+            continue
+        s = stats(ok_rs)
+        j = sum(jev_list_cost(r, price) for r in ok_rs)
+        before, after = s["taskpenny"] / s["base"], (s["taskpenny"] + j) / s["base"]  # one decimal: the change is small
+        cell = (f"{(1 - before) * 100:.1f}% less → **{(1 - after) * 100:.1f}% less**" if after <= 1 else
+                f"{before:.2f}x → **{after:.2f}x as much**")
+        out.append(f"| {name} | {s['n']} | ${s['taskpenny']:.3f} | ${j:.4f} | ${s['base']:.3f} | {cell} |")
     gold = [r for r in rows if r["quality"]["mode"] == "gold" and r["baseline"]["status"] == "done"]
     if gold:
         t = sum(r["quality"]["taskpenny"]["total"] for r in gold)

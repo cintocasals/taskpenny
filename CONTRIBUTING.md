@@ -9,7 +9,7 @@ git clone https://github.com/cintocasals/taskpenny && cd taskpenny
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 pytest -q              # no key needed: tests use a scripted gateway
-taskpenny demo              # the whole flow with simulated models
+taskpenny demo         # replays a real run: no key, no cost
 ```
 
 ## Good ways to help

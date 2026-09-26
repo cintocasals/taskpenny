@@ -31,6 +31,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from . import openai_api as oai
+from .demo import load_demo
 from .catalog import Catalog
 from .engine import Engine, Limits
 from .gateway import GatewayError
@@ -164,6 +165,11 @@ class App:
             out.append({"id": d.get("id", p.stem), "request": d.get("request", "")[:160],
                         "status": d.get("status"), "cost": d.get("receipt", {}).get("total_cost"),
                         "saving_pct": d.get("receipt", {}).get("saving_pct"), "started_at": d.get("started_at")})
+        demo = load_demo()  # the real run shipped with the package, so there is always something to replay
+        if not any(o["id"] == demo["id"] for o in out):
+            out.append({"id": demo["id"], "request": demo.get("request", "")[:160], "status": demo.get("status"),
+                        "cost": demo["receipt"]["total_cost"], "saving_pct": demo["receipt"].get("saving_pct"),
+                        "started_at": demo.get("started_at"), "example": True})
         return out
 
     def load_run(self, run_id: str) -> dict | None:
@@ -171,7 +177,8 @@ class App:
             return None
         p = self.runs_dir / f"{run_id}.json"
         if not p.exists():
-            return None
+            demo = load_demo()
+            return demo if run_id == demo["id"] else None
         return json.loads(p.read_text(encoding="utf-8"))
 
 

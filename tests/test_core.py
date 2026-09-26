@@ -1,6 +1,7 @@
 """Core tests. No network, no key, no cost: scripted gateways stand in for Jev and the models."""
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -230,21 +231,48 @@ async def test_no_split_flag(catalog):
 
 
 async def test_dry_run_demo_end_to_end(catalog):
-    from taskpenny.cli import DEMO_PROMPT
+    from taskpenny.simulate import SAMPLE_PROMPT
     gw = SimulatedGateway(catalog, latency=(0, 0.001))
-    res = await Engine(gw, catalog).run(DEMO_PROMPT)
+    res = await Engine(gw, catalog).run(SAMPLE_PROMPT)
     assert res.status == "done"
     assert res.nodes["root"]["kind"] == "split"
     assert any(n["kind"] == "jev" for n in res.nodes.values())
     assert res.events[0]["type"] == "run_started" and res.events[-1]["type"] == "run_done"
 
 
-def test_cli_models_and_demo(tmp_path, capsys):
+def test_cli_models_and_dry_run(tmp_path, capsys):
     from taskpenny.cli import main
+    from taskpenny.simulate import SAMPLE_PROMPT
     assert main(["models"]) == 0
     assert "Cheapest per tier" in capsys.readouterr().out
-    assert main(["demo", "--save-dir", str(tmp_path), "--quiet"]) == 0
+    assert main(["run", "--dry-run", "--save-dir", str(tmp_path), "--quiet", SAMPLE_PROMPT]) == 0
     assert list(tmp_path.glob("*.json"))
+    out = capsys.readouterr().out
+    assert "Simulated run" in out and "Saving" not in out  # nothing measured, so no saving is claimed
+
+
+def test_demo_replays_the_real_run(capsys):
+    from taskpenny.cli import main
+    from taskpenny.demo import load_demo, replay
+    run = load_demo()
+    assert run["status"] == "done" and run["receipt"]["total_cost"] > 0 and run["events"]
+    seen, waits = [], []
+    replay(run, seen.append, speed=4, sleep=waits.append)
+    assert len(seen) == len(run["events"]) and waits and max(waits) <= 1.5
+    assert main(["demo", "--instant", "--quiet"]) == 0
+    out = capsys.readouterr().out
+    assert "real, as billed" in out and "estimate" in out and run["answer"].splitlines()[0] in out
+    assert "simulated" not in out.lower()
+
+
+def test_server_offers_the_demo_run(catalog, tmp_path):
+    from taskpenny.demo import load_demo
+    from taskpenny.server import App
+    app = App(catalog, runs_dir=tmp_path, dry_run_default=True)
+    demo = load_demo()
+    listed = app.saved_runs()
+    assert listed and listed[-1]["id"] == demo["id"] and listed[-1]["example"]
+    assert app.load_run(demo["id"])["receipt"] == demo["receipt"]
 
 
 async def test_refused_model_falls_back_to_next_in_tier(catalog):
@@ -313,7 +341,8 @@ async def test_parallel_calls_cannot_overshoot_the_budget(catalog):
 
 def test_export_markdown(tmp_path, capsys):
     from taskpenny.cli import main
-    assert main(["demo", "--save-dir", str(tmp_path), "--quiet"]) == 0
+    from taskpenny.simulate import SAMPLE_PROMPT
+    assert main(["run", "--dry-run", "--save-dir", str(tmp_path), "--quiet", SAMPLE_PROMPT]) == 0
     run = next(tmp_path.glob("*.json"))
     assert main(["export", str(run)]) == 0
     md = capsys.readouterr().out
@@ -653,3 +682,29 @@ def test_responses_api(tmp_path, monkeypatch):
         assert bad.status_code == 400 and bad.json()["error"]["message"]
     finally:
         httpd.shutdown()
+
+
+def test_static_demo_page_is_built_and_up_to_date():
+    import importlib.util
+    root = Path(__file__).resolve().parents[1]
+    spec = importlib.util.spec_from_file_location("demo_build", root / "docs" / "demo" / "build.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    html = mod.build()
+    assert "demo_id" in html and "static: true" in html and "</script>" in html
+    assert html.count('"id": "demo-run"') == 1
+    # the published page must match the page and the run of this version: run docs/demo/build.py after changes
+    assert (root / "docs" / "demo" / "index.html").read_text(encoding="utf-8") == html
+
+
+def test_images_are_refused_not_dropped():
+    import taskpenny.openai_api as oai
+    img = [{"type": "text", "text": "What is in this picture?"},
+           {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}}]
+    with pytest.raises(oai.BadRequest, match="image_url"):
+        oai.request_from_messages([{"role": "user", "content": img}])
+    with pytest.raises(oai.BadRequest, match="input_image"):
+        oai.request_from_responses({"input": [{"role": "user", "content": [
+            {"type": "input_text", "text": "Describe it"}, {"type": "input_image", "image_url": "https://x/y.png"}]}]})
+    ok = oai.request_from_responses({"input": [{"role": "user", "content": [{"type": "input_text", "text": "Hi"}]}]})
+    assert ok == "Hi"

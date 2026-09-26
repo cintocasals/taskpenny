@@ -96,6 +96,23 @@ not a precise gain. Five of eleven plans were dropped because splitting would no
 exactly what the runner recorded ($2.27 in total, judge included). Raw results:
 `results/2026-09-25-holdout50.jsonl`.
 
+## If Jev is paid at its list price
+
+Jev, the model that makes Taskpenny's decisions, was free on Vercel AI Gateway during these runs (its list price
+is $0.042 per million input tokens; output is free). Anyone who tries Taskpenny may pay it, so here are the
+same costs with Jev at its list price. The receipts count every input token; those not spent by a language
+model went to Jev or to the planner, so these are upper bounds. `summarize.py` prints them.
+
+| Tasks | n | Jev at list price, at most | Taskpenny cost against Sonnet 5: free Jev → Jev paid |
+|---|---|---|---|
+| **The 50 new tasks** | 50 | $0.0078 | 53.3% less → **52.5% less** |
+| Arena-Hard (new sample) | 40 | $0.0042 | 52.4% less → **51.9% less** |
+| Four asks in one message (new) | 10 | $0.0036 | 60.0% less → **56.9% less** |
+| **First run, all tasks** | 142 | $0.0180 | 14.2% less → **12.9% less** |
+| Label 10 messages | 10 | $0.0007 | 97.9% less → **95.3% less** |
+
+Jev matters most where the language models are cheapest: labelling and requests split into parts.
+
 ## What we are changing next
 
 1. **A ceiling.** Done (`TASKPENNY_CEILING`, `--ceiling`); checked above.

@@ -16,17 +16,13 @@ from .gateway import GatewayError
 from .runlog import save
 from .simulate import SimulatedGateway
 
-DEMO_PROMPT = ("Prepare the launch of a small online course on AI for bakeries: 1) define two buyer personas, "
-               "2) write the landing page headline and three benefits, 3) write a two-email welcome sequence, "
-               "4) list five social post ideas, and 5) for each post idea, decide whether it is educational, "
-               "promotional or social proof.")
-
 
 class Printer:
     """Turns engine events into one readable line each."""
 
-    def __init__(self, stream=sys.stderr, color: bool | None = None):
-        self.out = stream
+    def __init__(self, stream=None, color: bool | None = None):
+        self.out = stream or sys.stderr
+        stream = self.out
         self.color = stream.isatty() if color is None else color
         self.depth: dict[str, int] = {"root": 0}
 
@@ -76,7 +72,8 @@ class Printer:
         print(f"{t} {pad}{tag} {line}{cost}", file=self.out, flush=True)
 
 
-def print_receipt(result, stream=sys.stdout) -> None:
+def print_receipt(result, stream=None, simulated: bool = False) -> None:
+    stream = stream or sys.stdout
     r = result.receipt
     print("\n" + "-" * 60, file=stream)
     print(f"Cost receipt · run {result.id} · {result.status} · {result.duration_s:.1f}s", file=stream)
@@ -87,6 +84,10 @@ def print_receipt(result, stream=sys.stdout) -> None:
     if r.get("timeouts"):
         print(f"  Note: {r['timeouts']} call(s) got no answer in time and are not in the total; "
               "the provider may still bill them.", file=stream)
+    if simulated:
+        print("  Simulated run: real catalog prices, placeholder answers. No saving is shown, because nothing was "
+              "measured.", file=stream)
+        return
     b = r["baseline"]
     print(f"  Same request with {b['model']} alone: about ${b['estimated_cost']:.5f}", file=stream)
     s = r.get("saving_pct")
@@ -130,7 +131,7 @@ async def _run(args, prompt: str) -> int:
         if args.dry_run:
             print("\n(dry run: simulated answers and decisions, real flow and catalog prices)", file=sys.stderr)
         print("\n" + result.answer)
-        print_receipt(result)
+        print_receipt(result, simulated=args.dry_run)
         if path:
             print(f"  Run saved to {path}")
         if result.error:
@@ -190,8 +191,11 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--file", help="read the request from a file")
     r.add_argument("--dry-run", action="store_true", help="simulated models: no key, no cost")
     run_opts(r)
-    d = sub.add_parser("demo", help="see Taskpenny work on a sample request, without a key")
-    run_opts(d)
+    d = sub.add_parser("demo", help="replay a real run in the terminal: no key, no cost")
+    d.add_argument("--speed", type=float, default=4.0, help="how much faster than it really ran (default 4)")
+    d.add_argument("--instant", action="store_true", help="no pauses")
+    d.add_argument("--full", action="store_true", help="print the whole answer")
+    d.add_argument("--quiet", action="store_true", help="only the summary, the answer and the receipt")
     u = sub.add_parser("ui", help="open the live task tree in your browser")
     u.add_argument("--port", type=int, default=8765)
     u.add_argument("--host", default="127.0.0.1")
@@ -241,9 +245,9 @@ def main(argv: list[str] | None = None) -> int:
               open_browser=args.cmd == "ui" and not args.no_browser, api_key=getattr(args, "api_key", None))
         return 0
     if args.cmd == "demo":
-        args.dry_run, args.file, prompt = True, None, DEMO_PROMPT
-    else:
-        prompt = _read_prompt(args)
+        from .demo import main as demo
+        return demo(speed=args.speed, instant=args.instant, full=args.full, quiet=args.quiet)
+    prompt = _read_prompt(args)
     try:
         return asyncio.run(_run(args, prompt))
     except GatewayError as e:

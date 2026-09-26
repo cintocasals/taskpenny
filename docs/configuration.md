@@ -5,7 +5,8 @@
 | Command | What it does |
 |---|---|
 | `taskpenny run "request"` | Runs one request and prints the answer and the cost receipt. `-` or a pipe reads stdin; `--file` reads a file. |
-| `taskpenny demo` | The same, on a sample request, with simulated models: no key, no cost. |
+| `taskpenny demo` | Replays a real run shipped with the package: every step, model, cost and the answer. No key, no cost. `--full` prints the whole answer, `--instant` skips the pauses. |
+| `taskpenny run --dry-run "request"` | The whole flow with simulated models and placeholder answers, at catalog prices: no key, no cost, no saving claimed. |
 | `taskpenny ui` | The live page in your browser: run requests, watch the task tree, replay and export saved runs. |
 | `taskpenny serve` | The OpenAI-compatible API (`/v1/chat/completions`, `/v1/models`) plus the live page, without opening a browser. |
 | `taskpenny export runs/<id>.json` | A saved run as a Markdown report. |

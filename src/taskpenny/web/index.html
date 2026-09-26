@@ -35,6 +35,8 @@ textarea:focus,select:focus,input:focus{outline:2px solid var(--ink);outline-off
 button{cursor:pointer;border-radius:2px}
 .login{border:1px solid var(--line);background:var(--paper);padding:16px}
 .login form{display:grid;gap:8px;max-width:520px}.login-hint{margin:0;color:var(--lead);font-size:13px}
+.static-note{margin:0;font-size:14px;max-width:78ch}.static-note code{font-family:var(--mono);font-size:13px}.static-note a{color:var(--ink)}
+body.static .examples,body.static .opts,body.static .history a.ghost{display:none}
 .login-row{display:flex;gap:8px;flex-wrap:wrap}.login-row input{flex:1;min-width:0;padding:8px;border:1px solid var(--line);background:var(--paper);color:var(--ink);font:inherit}
 .login-error{margin:0;color:var(--oxide);font-size:13px}
 .btn{background:var(--ink);color:var(--on-ink);border:1px solid var(--ink);padding:8px 18px;font-weight:600}
@@ -129,6 +131,7 @@ footer{font-family:var(--mono);font-size:11px;color:var(--lead);border-top:1px s
   <section class="compose" aria-label="request">
     <label class="label" for="req" data-i18n="request"></label>
     <textarea id="req"></textarea>
+    <p class="static-note" id="static-note" hidden></p>
     <div class="examples"><span class="label" data-i18n="examples"></span></div>
     <div class="opts">
       <label><span data-i18n="profile"></span> <select id="profile"></select></label>
@@ -195,12 +198,12 @@ footer{font-family:var(--mono);font-size:11px;color:var(--lead);border-top:1px s
 const I18N = {
   en: {tagline:"Splits a big request into small tasks and sends each one to the cheapest model that can do it well. Decisions by Jev.",
     language:"Language", request:"Your request", rootTitle:"Your request", examples:"Try", profile:"Providers", budget:"Budget", dry:"Dry run (no key, no cost)",
-    nosplit:"Do not split", run:"Run", running:"Running…", spent:"Spent", calls:"Calls", time:"Time", baseline:"One strong model", saving:"Saving",
-    costlier:"Extra cost", tree:"Task tree", detail:"Selected task", answer:"Final answer", copy:"Copy", copied:"Copied", log:"Every step",
+    nosplit:"Do not split", run:"Run", running:"Running…", spent:"Spent", calls:"Calls", time:"Time", baseline:"One strong model (est.)", saving:"Est. saving",
+    costlier:"Est. extra cost", tree:"Task tree", detail:"Selected task", answer:"Final answer", copy:"Copy", copied:"Copied", log:"Every step",
     loginTitle:"Key for this Taskpenny", loginHint:"This Taskpenny is protected. Enter its key once; this browser will remember it for 30 days.", loginButton:"Enter", loginWrong:"That key is not right.",
     history:"Saved runs", speed:"Replay speed", watch:"Watch", working:"working", fromApi:"from the API", replay:"Replay", open:"Open", export:"Export", treeEmpty:"Run a request to see how Taskpenny splits it and who does each part.",
     detailEmpty:"Click a task in the tree to see its prompt, the decisions about it and its result.", answerEmpty:"The answer appears here when the run ends.",
-    noRuns:"No saved runs yet.", live:"LIVE", dryMode:"DRY RUN", prompt:"Prompt", result:"Result", notes:"Hand-off notes", problem:"Problem reported",
+    noRuns:"No saved runs yet.", example:"Example", replayMode:"Replay of a real run", staticNote:"A real Taskpenny run, replayed in your browser: no key, no cost, nothing to install. To run your own requests, install it and open the live page:", staticResults:"Measured results", live:"LIVE", dryMode:"DRY RUN", prompt:"Prompt", result:"Result", notes:"Hand-off notes", problem:"Problem reported",
     gate:"Jev decided", split:"split", tier:"tier", conf:"confidence", raised:"raised one tier (Jev unsure)", floored:"minimum tier for this kind of task", type:"task type", answerType:"answer",
     model:"model", attempts:"attempts", cost:"cost", status:"status", waiting:"waiting", jev:"JEV", done:"done", failed:"failed", partial:"stopped early",
     footer:"Taskpenny · open source (MIT) · by Cinto Casals, SerIA Nativa. Decisions by Jev (TypeSafe AI) through Vercel AI Gateway. Keys stay on your computer.",
@@ -222,12 +225,12 @@ const I18N = {
         model_fallback:"model refused", aggregate:"assemble", final_check:"final check", node_done:"done", node_failed:"failed", budget_exceeded:"budget", error:"error", run_done:"finished"}},
   ca: {tagline:"Parteix una petició gran en tasques petites i envia cadascuna al model més barat que la pot fer bé. Decideix Jev.",
     language:"Idioma", request:"La teva petició", rootTitle:"La teva petició", examples:"Prova", profile:"Proveïdors", budget:"Pressupost", dry:"Simulació (sense clau ni cost)",
-    nosplit:"No dividir", run:"Executa", running:"Treballant…", spent:"Gastat", calls:"Crides", time:"Temps", baseline:"Un sol model potent", saving:"Estalvi",
-    costlier:"Cost de més", tree:"Arbre de tasques", detail:"Tasca seleccionada", answer:"Resposta final", copy:"Copia", copied:"Copiat", log:"Tots els passos",
+    nosplit:"No dividir", run:"Executa", running:"Treballant…", spent:"Gastat", calls:"Crides", time:"Temps", baseline:"Un sol model potent (est.)", saving:"Estalvi estimat",
+    costlier:"Cost de més estimat", tree:"Arbre de tasques", detail:"Tasca seleccionada", answer:"Resposta final", copy:"Copia", copied:"Copiat", log:"Tots els passos",
     loginTitle:"Clau d'aquest Taskpenny", loginHint:"Aquest Taskpenny està protegit. Escriu-ne la clau una vegada; aquest navegador la recordarà 30 dies.", loginButton:"Entra", loginWrong:"La clau no és correcta.",
     history:"Execucions desades", speed:"Velocitat de repetició", watch:"Segueix", working:"treballant", fromApi:"des de l'API", replay:"Repeteix", open:"Obre", export:"Exporta", treeEmpty:"Executa una petició per veure com Taskpenny la divideix i qui fa cada part.",
     detailEmpty:"Clica una tasca de l'arbre per veure'n el prompt, què se n'ha decidit i el resultat.", answerEmpty:"La resposta surt aquí quan acaba l'execució.",
-    noRuns:"Encara no hi ha cap execució desada.", live:"EN VIU", dryMode:"SIMULACIÓ", prompt:"Prompt", result:"Resultat", notes:"Notes de traspàs", problem:"Problema detectat",
+    noRuns:"Encara no hi ha cap execució desada.", example:"Exemple", replayMode:"Repetició d'una execució real", staticNote:"Una execució real de Taskpenny, repetida al teu navegador: sense clau, sense cost i sense instal·lar res. Per fer les teves peticions, instal·la'l i obre la pàgina en directe:", staticResults:"Resultats mesurats", live:"EN VIU", dryMode:"SIMULACIÓ", prompt:"Prompt", result:"Resultat", notes:"Notes de traspàs", problem:"Problema detectat",
     gate:"Jev ha decidit", split:"dividir", tier:"nivell", conf:"confiança", raised:"un nivell amunt (Jev dubtava)", floored:"nivell mínim per a aquest tipus de tasca", type:"tipus de tasca", answerType:"resposta",
     model:"model", attempts:"intents", cost:"cost", status:"estat", waiting:"en espera", jev:"JEV", done:"fet", failed:"fallat", partial:"aturat abans",
     footer:"Taskpenny · codi obert (MIT) · de Cinto Casals, SerIA Nativa. Decideix Jev (TypeSafe AI) per Vercel AI Gateway. Les claus no surten del teu ordinador.",
@@ -249,12 +252,12 @@ const I18N = {
         model_fallback:"model refusat", aggregate:"uneix", final_check:"comprovació final", node_done:"fet", node_failed:"fallat", budget_exceeded:"pressupost", error:"error", run_done:"acabat"}},
   es: {tagline:"Divide una petición grande en tareas pequeñas y envía cada una al modelo más barato que la hace bien. Decide Jev.",
     language:"Idioma", request:"Tu petición", rootTitle:"Tu petición", examples:"Prueba", profile:"Proveedores", budget:"Presupuesto", dry:"Simulación (sin clave ni coste)",
-    nosplit:"No dividir", run:"Ejecutar", running:"Trabajando…", spent:"Gastado", calls:"Llamadas", time:"Tiempo", baseline:"Un solo modelo potente", saving:"Ahorro",
-    costlier:"Coste de más", tree:"Árbol de tareas", detail:"Tarea seleccionada", answer:"Respuesta final", copy:"Copiar", copied:"Copiado", log:"Todos los pasos",
+    nosplit:"No dividir", run:"Ejecutar", running:"Trabajando…", spent:"Gastado", calls:"Llamadas", time:"Tiempo", baseline:"Un solo modelo potente (est.)", saving:"Ahorro estimado",
+    costlier:"Coste de más estimado", tree:"Árbol de tareas", detail:"Tarea seleccionada", answer:"Respuesta final", copy:"Copiar", copied:"Copiado", log:"Todos los pasos",
     loginTitle:"Clave de este Taskpenny", loginHint:"Este Taskpenny está protegido. Escribe su clave una vez; este navegador la recordará 30 días.", loginButton:"Entrar", loginWrong:"La clave no es correcta.",
     history:"Ejecuciones guardadas", speed:"Velocidad de repetición", watch:"Seguir", working:"trabajando", fromApi:"desde la API", replay:"Repetir", open:"Abrir", export:"Exportar", treeEmpty:"Ejecuta una petición para ver cómo Taskpenny la divide y quién hace cada parte.",
     detailEmpty:"Haz clic en una tarea del árbol para ver su prompt, lo que se ha decidido y el resultado.", answerEmpty:"La respuesta aparece aquí cuando termina la ejecución.",
-    noRuns:"Todavía no hay ejecuciones guardadas.", live:"EN VIVO", dryMode:"SIMULACIÓN", prompt:"Prompt", result:"Resultado", notes:"Notas de traspaso", problem:"Problema detectado",
+    noRuns:"Todavía no hay ejecuciones guardadas.", example:"Ejemplo", replayMode:"Repetición de una ejecución real", staticNote:"Una ejecución real de Taskpenny, repetida en tu navegador: sin clave, sin coste y sin instalar nada. Para hacer tus peticiones, instálalo y abre la página en directo:", staticResults:"Resultados medidos", live:"EN VIVO", dryMode:"SIMULACIÓN", prompt:"Prompt", result:"Resultado", notes:"Notas de traspaso", problem:"Problema detectado",
     gate:"Jev ha decidido", split:"dividir", tier:"nivel", conf:"confianza", raised:"un nivel más (Jev dudaba)", floored:"nivel mínimo para este tipo de tarea", type:"tipo de tarea", answerType:"respuesta",
     model:"modelo", attempts:"intentos", cost:"coste", status:"estado", waiting:"en espera", jev:"JEV", done:"hecho", failed:"fallado", partial:"parado antes",
     footer:"Taskpenny · código abierto (MIT) · de Cinto Casals, SerIA Nativa. Decide Jev (TypeSafe AI) vía Vercel AI Gateway. Las claves no salen de tu ordenador.",
@@ -292,7 +295,11 @@ function applyLang(){
   const ex = document.querySelector(".examples"); ex.querySelectorAll("button").forEach(b => b.remove());
   ["ex1","ex2","ex3"].forEach(k => { const b = document.createElement("button"); b.className = "ghost"; b.textContent = L[k];
     b.addEventListener("click", () => { $("req").value = L[k + "t"]; $("req").focus(); }); ex.append(b); });
-  $("mode").textContent = ($("dry").checked || !info.has_key) ? L.dryMode : L.live;
+  $("mode").textContent = info.static ? L.replayMode : ($("dry").checked || !info.has_key) ? L.dryMode : L.live;
+  if (info.static) {
+    $("static-note").innerHTML = esc(L.staticNote) + ' <code>pip install taskpenny &amp;&amp; taskpenny ui</code> · ' +
+      '<a href="https://github.com/cintocasals/taskpenny">GitHub</a> · <a href="https://github.com/cintocasals/taskpenny/blob/main/bench/public/RESULTS.md">' + esc(L.staticResults) + "</a>";
+  }
   if (S) renderAll();
   loadHistory();
 }
@@ -510,7 +517,8 @@ async function loadHistory(live){
   if (!runs.length && !live.length) { box.innerHTML = '<p class="empty">' + esc(L.noRuns) + "</p>"; return; }
   runs.forEach(r => {
     const row = document.createElement("div"); row.className = "row";
-    row.innerHTML = '<span class="req" title="' + esc(r.request) + '">' + esc(r.request) + '</span><span class="cost">' + money(r.cost) +
+    row.innerHTML = '<span class="req" title="' + esc(r.request) + '">' + (r.example ? "<b>" + esc(L.example) + "</b> · " : "") +
+      esc(r.request) + '</span><span class="cost">' + money(r.cost) +
       (r.saving_pct != null ? " · " + (r.saving_pct >= 0 ? L.saving + " " + r.saving_pct.toFixed(0) + "%" : L.costlier + " " + (-r.saving_pct).toFixed(0) + "%") : "") + "</span>";
     const rep = document.createElement("button"); rep.className = "ghost"; rep.textContent = L.replay; rep.addEventListener("click", () => replay(r.id, false));
     const op = document.createElement("button"); op.className = "ghost"; op.textContent = L.open; op.addEventListener("click", () => replay(r.id, true));
@@ -545,6 +553,14 @@ async function init(){
   if (r && r.status === 401) { showLogin(); return; }
   try { info = r ? await r.json() : {}; } catch (e) { info = {}; }
   $("login").hidden = true;
+  if (info.static) {  // the public demo: replay the saved run, nothing can be run from here
+    document.body.classList.add("static"); $("static-note").hidden = false; $("req").readOnly = true;
+    lang = pickLang(); applyLang();
+    $("lang").addEventListener("change", e => { lang = e.target.value; try { localStorage.setItem("taskpenny.lang", lang); } catch(x) {} applyLang(); });
+    $("copy").addEventListener("click", async () => { if (!S || !S.answer) return; try { await navigator.clipboard.writeText(S.answer); } catch (e) {} });
+    replay(info.demo_id, false);
+    return;
+  }
   (info.profiles || ["all"]).forEach(p => { const o = document.createElement("option"); o.value = o.textContent = p; $("profile").append(o); });
   $("dry").checked = !!info.dry_run_default; $("dry").disabled = !info.has_key;
   lang = pickLang(); applyLang();

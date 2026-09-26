@@ -15,6 +15,12 @@ from typing import Any
 from .catalog import Catalog
 from .gateway import ChatResult, EvalResult, Usage
 
+# A request with parts of every tier and a choice for Jev, for tests and `taskpenny run --dry-run`.
+SAMPLE_PROMPT = ("Prepare the launch of a small online course on AI for bakeries: 1) define two buyer personas, "
+                 "2) write the landing page headline and three benefits, 3) write a two-email welcome sequence, "
+                 "4) list five social post ideas, and 5) for each post idea, decide whether it is educational, "
+                 "promotional or social proof.")
+
 NUMBERED = re.compile(r"(?:^|\s)(\d{1,2})[).]\s+(.+?)(?=(?:\s\d{1,2}[).]\s)|$)", re.S)
 CHOICE_HINTS = ("positive, negative", "positiva, negativa", "queja, una pregunta", "bug report", " o ", " or ")
 FILLER = "This simulated text stands in for the real answer, so the cost receipt has a realistic length. "

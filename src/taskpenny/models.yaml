@@ -78,6 +78,7 @@ models:
     price: { input: 1.00, output: 5.00 }
     context: 200000
     vision: true
+    direct_id: claude-haiku-4-5-20251001   # the name Anthropic's own API lists
 
   - id: google/gemini-3.8-flash
     provider: google
