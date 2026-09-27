@@ -592,12 +592,20 @@ async def test_a_cancelled_run_stops_its_caller_and_carries_its_result(catalog):
         async def chat(self, model, messages, **kw):
             await asyncio.sleep(5)
             return await super().chat(model, messages, **kw)
-    task = asyncio.ensure_future(Engine(Slow(catalog, gate=TEXT), catalog).run("Write an email"))
+    seen = {}
+
+    async def caller():  # the way the server calls the engine: directly, catching the cancellation to save the run
+        try:
+            await Engine(Slow(catalog, gate=TEXT), catalog).run("Write an email")
+        except RunCancelled as e:
+            seen["result"] = e.result
+            raise
+    task = asyncio.ensure_future(caller())
     await asyncio.sleep(0.05)
     task.cancel()
-    with pytest.raises(RunCancelled) as e:
+    with pytest.raises(asyncio.CancelledError):
         await task
-    assert e.value.result.status == "failed" and "cancelled" in e.value.result.error
+    assert seen["result"].status == "failed" and "cancelled" in seen["result"].error
     assert task.cancelled()
 
 

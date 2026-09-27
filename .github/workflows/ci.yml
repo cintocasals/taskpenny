@@ -31,5 +31,10 @@ jobs:
       - run: |
           docker run -d --name taskpenny -p 8765:8765 taskpenny
           sleep 5
+          # no AI_GATEWAY_API_KEY here: a real request is refused, a dry run is answered and marked simulated
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8765/v1/chat/completions \
+            -H 'Content-Type: application/json' -d '{"model":"taskpenny","messages":[{"role":"user","content":"Hello"}]}')
+          test "$code" = 503
           curl -sf http://127.0.0.1:8765/v1/chat/completions -H 'Content-Type: application/json' \
-            -d '{"model":"taskpenny","messages":[{"role":"user","content":"Hello"}]}' | grep -q chat.completion
+            -d '{"model":"taskpenny","messages":[{"role":"user","content":"Hello"}],"taskpenny":{"dry_run":true}}' \
+            | grep -q '"simulated": true'
