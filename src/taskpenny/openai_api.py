@@ -2,6 +2,13 @@
 
 Point the tool at http://127.0.0.1:8765/v1 and use the model "taskpenny" (all providers) or "taskpenny/<profile>"
 (for example "taskpenny/anthropic"). Each request is one Taskpenny run: Jev decides, cheap models work, Jev checks.
+
+How a run's status reaches the client: "done" and "unverified" answer with finish_reason "stop" (Responses:
+"completed"); "partial" with "length" (Responses: "incomplete"); a run with no answer is an HTTP 502 error. The
+`taskpenny` object always carries the status and, for anything but "done", the warnings that explain it; the
+X-Taskpenny-Status header carries the status too, except on a stream, whose headers go out before the run ends.
+A simulated run (dry run) says so in `taskpenny.simulated` and the X-Taskpenny-Simulated header. Taskpenny decides the models and their limits itself, so sampling parameters are
+ignored, and listed in `taskpenny.ignored`.
 """
 
 from __future__ import annotations
@@ -13,6 +20,27 @@ from typing import Any
 
 class BadRequest(ValueError):
     pass
+
+
+IGNORED = ("max_tokens", "max_completion_tokens", "max_output_tokens", "temperature", "top_p", "stop", "seed",
+           "presence_penalty", "frequency_penalty", "logit_bias", "logprobs", "top_logprobs", "user", "store",
+           "metadata", "reasoning_effort", "reasoning", "parallel_tool_calls", "service_tier")
+ANSWERED = ("done", "unverified")  # a complete answer; "unverified" says a check did not pass or could not run
+
+
+def ignored_params(body: dict) -> list[str]:
+    """Parameters Taskpenny does not apply (it picks the models and their limits), so the client can see them.
+    Asking for several answers is refused: it would silently get one."""
+    n = body.get("n")
+    if n not in (None, 1, "1"):
+        raise BadRequest("Taskpenny returns one answer per request: n must be 1")
+    return [k for k in IGNORED if body.get(k) not in (None, "", [], {})]
+
+
+def wants_stream(body: dict) -> bool:
+    """stream: true (a boolean, or the text "true" some tools send). Anything else is a normal answer."""
+    v = body.get("stream")
+    return v is True or (isinstance(v, str) and v.strip().lower() == "true")
 
 
 def _text(content: Any) -> str:
@@ -90,7 +118,7 @@ def model_list(profiles: list[str]) -> dict:
     return {"object": "list", "data": [{"id": i, "object": "model", "created": now, "owned_by": "taskpenny"} for i in ids]}
 
 
-def completion(run: dict, model: str) -> dict:
+def completion(run: dict, model: str, ignored: list[str] | None = None) -> dict:
     r = run.get("receipt") or {}
     return {
         "id": f"chatcmpl-taskpenny-{run.get('id', '')}",
@@ -98,26 +126,31 @@ def completion(run: dict, model: str) -> dict:
         "created": int(time.time()),
         "model": model,
         "choices": [{"index": 0, "message": {"role": "assistant", "content": run.get("answer", "")},
-                     "finish_reason": "stop" if run.get("status") == "done" else "length"}],
+                     "finish_reason": "stop" if run.get("status") in ANSWERED else "length"}],
         "usage": {"prompt_tokens": r.get("tokens_in", 0), "completion_tokens": r.get("tokens_out", 0),
                   "total_tokens": r.get("tokens_in", 0) + r.get("tokens_out", 0)},
-        "taskpenny": extra(run),
+        "taskpenny": extra(run, ignored),
     }
 
 
-def extra(run: dict) -> dict:
+def extra(run: dict, ignored: list[str] | None = None) -> dict:
     r = run.get("receipt") or {}
-    return {"run_id": run.get("id"), "status": run.get("status"), "cost_usd": r.get("total_cost"),
-            "baseline_estimate_usd": (r.get("baseline") or {}).get("estimated_cost"),
-            "saving_pct": r.get("saving_pct"), "error": run.get("error") or None}
+    out = {"run_id": run.get("id"), "status": run.get("status"), "simulated": bool(r.get("simulated")),
+           "warnings": list(run.get("warnings") or []),
+           "cost_usd": r.get("total_cost"), "baseline_estimate_usd": (r.get("baseline") or {}).get("estimated_cost"),
+           "saving_pct": r.get("saving_pct"), "error": run.get("error") or None}
+    if ignored:
+        out["ignored"] = list(ignored)
+    return out
 
 
-def stream_chunks(run: dict, model: str) -> list[bytes]:
+def stream_chunks(run: dict, model: str, ignored: list[str] | None = None) -> list[bytes]:
     """Server-sent events for stream=true. Taskpenny works on the whole request before answering, so the answer
-    arrives in one piece at the end; the format is the one OpenAI clients expect."""
+    arrives in one piece at the end (keep-alive comments go out while it works); the format is the one OpenAI
+    clients expect."""
     base = {"id": f"chatcmpl-taskpenny-{run.get('id', '')}", "object": "chat.completion.chunk",
             "created": int(time.time()), "model": model}
-    done = completion(run, model)
+    done = completion(run, model, ignored)
 
     def ev(obj: dict) -> bytes:
         return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n".encode("utf-8")
@@ -132,6 +165,14 @@ def stream_chunks(run: dict, model: str) -> list[bytes]:
 
 def error(message: str, kind: str = "invalid_request_error", code: str | None = None) -> dict:
     return {"error": {"message": message, "type": kind, "code": code}}
+
+
+def stream_error(message: str, kind: str, responses: bool) -> list[bytes]:
+    """An error after the stream has started: OpenAI clients raise it as an API error."""
+    if responses:
+        body = {"type": "error", "code": kind, "message": message, "param": None}
+        return [f"event: error\ndata: {json.dumps(body, ensure_ascii=False)}\n\n".encode("utf-8")]
+    return [f"data: {json.dumps(error(message, kind), ensure_ascii=False)}\n\n".encode("utf-8"), b"data: [DONE]\n\n"]
 
 
 # --------------------------------------------------------------- Responses API
@@ -156,25 +197,27 @@ def request_from_responses(body: dict) -> str:
     return request_from_messages(messages)
 
 
-def response(run: dict, model: str) -> dict:
+def response(run: dict, model: str, ignored: list[str] | None = None) -> dict:
     r = run.get("receipt") or {}
     text = run.get("answer", "")
     rid = f"resp_taskpenny_{run.get('id', '')}"
+    complete = run.get("status") in ANSWERED
     return {
         "id": rid, "object": "response", "created_at": int(time.time()), "model": model,
-        "status": "completed" if run.get("status") == "done" else "incomplete",
+        "status": "completed" if complete else "incomplete",
+        "incomplete_details": None if complete else {"reason": "max_output_tokens"},
         "output": [{"type": "message", "id": f"msg_{rid}", "status": "completed", "role": "assistant",
                     "content": [{"type": "output_text", "text": text, "annotations": []}]}],
         "output_text": text,
         "usage": {"input_tokens": r.get("tokens_in", 0), "output_tokens": r.get("tokens_out", 0),
                   "total_tokens": r.get("tokens_in", 0) + r.get("tokens_out", 0)},
-        "taskpenny": extra(run),
+        "taskpenny": extra(run, ignored),
     }
 
 
-def response_events(run: dict, model: str) -> list[bytes]:
+def response_events(run: dict, model: str, ignored: list[str] | None = None) -> list[bytes]:
     """Server-sent events for a streamed Responses API call, with the whole answer in one delta."""
-    full = response(run, model)
+    full = response(run, model, ignored)
     item = full["output"][0]
     text = full["output_text"]
     started = full | {"status": "in_progress", "output": []}
@@ -191,5 +234,5 @@ def response_events(run: dict, model: str) -> list[bytes]:
         ev("response.content_part.done", {"item_id": item["id"], "output_index": 0, "content_index": 0,
                                           "part": item["content"][0]}),
         ev("response.output_item.done", {"output_index": 0, "item": item}),
-        ev("response.completed", {"response": full}),
+        ev("response.completed" if full["status"] == "completed" else "response.incomplete", {"response": full}),
     ]

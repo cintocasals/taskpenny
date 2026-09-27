@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Build docs/demo/index.html: the live page in replay mode, with the real run from `taskpenny demo` inside it.
 
-No server, no key, no cost: the page answers its own API calls from the embedded run. GitHub Pages can serve the
-docs/ folder, so the demo is at <user>.github.io/taskpenny/demo/. Rebuild after changing the page or the run:
+No server, no key, no cost: the page answers its own API calls from the embedded run, and its fonts are copied
+next to it (docs/demo/fonts/, SIL Open Font License), so the browser asks nothing of any other site. GitHub Pages
+can serve the docs/ folder, so the demo is at <user>.github.io/taskpenny/demo/. Rebuild after changing the page
+or the run:
 
     python docs/demo/build.py
 """
@@ -15,11 +17,12 @@ from importlib import resources
 from pathlib import Path
 
 OUT = Path(__file__).with_name("index.html")
+FONTS = Path(__file__).with_name("fonts")
 DESCRIPTION = ("A real Taskpenny run, replayed in your browser: one request split into five tasks, each done by the "
                "cheapest model that can do it well, every result checked, and the receipt. No key, no cost.")
 
 SHIM = """<script>
-/* Static demo: the page's API calls are answered from the run below; nothing leaves the browser. */
+/* Static demo: the page's API calls are answered from the run below; nothing is sent anywhere. */
 (() => {
   const RUN = __RUN__;
   const entry = {id: RUN.id, request: RUN.request.slice(0, 160), status: RUN.status, cost: RUN.receipt.total_cost,
@@ -55,7 +58,20 @@ def build() -> str:
     return page
 
 
+def copy_fonts() -> list[Path]:
+    """The page's fonts, next to it, byte for byte as the package ships them."""
+    FONTS.mkdir(exist_ok=True)
+    out = []
+    for f in resources.files("taskpenny").joinpath("web/fonts").iterdir():
+        if f.name.endswith((".woff2", ".txt")):
+            dest = FONTS / f.name
+            dest.write_bytes(f.read_bytes())
+            out.append(dest)
+    return out
+
+
 if __name__ == "__main__":
     html = build()
     OUT.write_text(html, encoding="utf-8")
-    print(f"{OUT} ({len(html) // 1024} KB)", file=sys.stderr)
+    fonts = copy_fonts()
+    print(f"{OUT} ({len(html) // 1024} KB) and {len(fonts)} font files", file=sys.stderr)

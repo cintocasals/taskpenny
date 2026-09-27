@@ -1,7 +1,9 @@
-"""The planner: a strong model that turns one request into a small set of well defined sub-tasks.
+"""The planner: turns one request into a small set of well defined sub-tasks.
 
-Planning quality is the bottleneck of task decomposition, so this is where Taskpenny spends on a strong model.
-The planner writes decision sub-tasks (choose / yes-no / score) as closed questions so Jev can solve them.
+Planning quality is the bottleneck of task decomposition. Critical (tier 4) requests get a strong planner
+(`planner` in models.yaml); the rest, where the parts are usually visible in the request itself, get a lighter one
+(`planner_light`). The planner writes decision sub-tasks (choose / yes-no / score) as closed questions so Jev can
+solve them.
 """
 
 from __future__ import annotations
@@ -10,7 +12,9 @@ import json
 import re
 from dataclasses import dataclass, field
 
-from .gateway import GatewayLike, Usage
+from .gateway import BudgetExceeded, GatewayError, GatewayLike, Usage
+
+FALLBACK_STATUS = (0, 402, 403, 404, 408, 429, 500, 502, 503, 504, 529)
 
 SYSTEM = """You are the planner of Taskpenny, a system that splits a request into sub-tasks so that each one can be
 done by the cheapest AI model able to do it well, and then combined into one answer.
@@ -42,7 +46,7 @@ Rules:
      "scale": ["lowest", "...", "highest"],                      (score only, 2 to 10 steps)
      "labels": {"label or scale step": "how the reader sees it, in the language of the request", ...},
      "items": [{"id": "1", "text": "the exact text to judge"}, ...]}
-  Put each item to classify as its own entry in "items", copied word for word from the request.
+  Put each item to classify as its own entry in "items", copied word for word from the request (50 at most).
 - Calculations, counting and dates are "text" tasks (a decision model cannot do arithmetic).
 - Keep the language of the request for everything the user will read. Decision questions and options go in English.
 """
@@ -101,10 +105,12 @@ def parse_plan(data: dict, max_subtasks: int) -> tuple[list[SubtaskSpec], str]:
     raw = data.get("subtasks") or []
     if not isinstance(raw, list) or not raw:
         raise PlanError("the plan has no sub-tasks")
+    if len(raw) > max_subtasks:  # never drop parts of a plan silently: ask again
+        raise PlanError(f"the plan has {len(raw)} sub-tasks; at most {max_subtasks} are allowed")
     subs: list[SubtaskSpec] = []
     seen: set[str] = set()
     rename: dict[str, str] = {}
-    for i, s in enumerate(raw[:max_subtasks], 1):
+    for i, s in enumerate(raw, 1):
         if not isinstance(s, dict):
             raise PlanError(f"sub-task {i} is not an object")
         orig = str(s.get("id") or f"t{i}")
@@ -118,13 +124,14 @@ def parse_plan(data: dict, max_subtasks: int) -> tuple[list[SubtaskSpec], str]:
         if at not in ("text", "choice", "yesno", "score"):
             at = "text"
         if at != "text":
-            dec = _clean_decision(at, dec)
+            dec = clean_decision(at, dec)
             if dec is None:  # not usable by Jev: a language model will do it
                 at = "text"
         subs.append(SubtaskSpec(
             id=sid, title=str(s.get("title") or sid)[:120], prompt=str(s.get("prompt") or "").strip(),
             success_criteria=str(s.get("success_criteria") or "").strip(), answer_type=at, decision=dec,
-            depends_on=[str(x) for x in (s.get("depends_on") or []) if str(x)],
+            depends_on=[str(x) for x in (s.get("depends_on") if isinstance(s.get("depends_on"), list) else [])
+                        if str(x)],
         ))
     for s in subs:
         s.depends_on = [rename.get(d, d) for d in s.depends_on]
@@ -137,18 +144,20 @@ def parse_plan(data: dict, max_subtasks: int) -> tuple[list[SubtaskSpec], str]:
     for s in subs:
         if not s.prompt:
             raise PlanError(f"sub-task {s.id} has no prompt")
-    return subs, str(data.get("assembly") or "Combine the results in order into one clear answer.")
+    return subs, str(data.get("assembly") or "Combine the results in order into one clear answer.")[:4000]
 
 
-def _clean_decision(kind: str, dec: dict | None) -> dict | None:
+def clean_decision(kind: str, dec: dict | None) -> dict | None:
+    """A decision spec Jev can answer, or None (then a language model does the task)."""
+    from .decider import MAX_JEV_ITEMS
     if not dec or not str(dec.get("question") or "").strip():
         return None
     items = dec.get("items")
-    if not isinstance(items, list) or not items:
+    if not isinstance(items, list) or not items or len(items) > MAX_JEV_ITEMS:
         return None
-    items = [{"id": str(it.get("id") or i), "text": str(it.get("text") or "").strip()}
+    items = [{"id": clean_id(str(it.get("id") or i), i), "text": str(it.get("text") or "").strip()}
              for i, it in enumerate(items, 1) if isinstance(it, dict) and str(it.get("text") or "").strip()]
-    if not items:
+    if not items or len({it["id"] for it in items}) != len(items):
         return None
     out = {"kind": kind, "question": str(dec["question"]).strip(), "items": items}
     labels = dec.get("labels")
@@ -159,6 +168,8 @@ def _clean_decision(kind: str, dec: dict | None) -> dict | None:
         if isinstance(opts, list):
             opts = {str(o): str(o) for o in opts}
         if not isinstance(opts, dict) or not (2 <= len(opts) <= 255):
+            return None
+        if not all(str(k).strip() for k in opts):
             return None
         out["options"] = {str(k): str(v) for k, v in opts.items()}
     if kind == "score":
@@ -175,22 +186,24 @@ class Planner:
         self.gw, self.model, self.max_subtasks, self.reasoning = gateway, model, max_subtasks, reasoning
         self.fallbacks = [m for m in (fallbacks or []) if m != model]
 
-    async def plan(self, request: str, context: str = "", can_retry=None) -> Plan:
-        """Ask for a plan; one more try if the first is not valid JSON and `can_retry()` (the budget) allows it."""
-        from .gateway import GatewayError
-        system = SYSTEM.replace("{max_subtasks}", str(self.max_subtasks))
+    async def plan(self, request: str, context: str = "", gw: GatewayLike | None = None,
+                   max_subtasks: int | None = None) -> Plan:
+        """Ask for a plan; one more try if the first is not valid JSON and the budget can pay for it.
+
+        `gw` is the engine's metered gateway: each call waits for a slot, reserves its cost first and is booked on
+        the task, so a PlanError's `usage` is only for the record."""
+        limit = max(2, min(self.max_subtasks, max_subtasks or self.max_subtasks))
+        system = SYSTEM.replace("{max_subtasks}", str(limit))
         user = request if not context else f"{request}\n\nContext from earlier steps:\n{context}"
         messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
         total, ms, last_err, model = Usage(), 0, None, self.model
         for attempt in range(2):
-            if attempt and can_retry is not None and not can_retry():
-                break
             try:
-                r = await self._call(messages)
-            except GatewayError as e:
+                r = await self._call(messages, gw or self.gw)
+            except (GatewayError, BudgetExceeded) as e:
                 if not attempt:
                     raise
-                last_err = e
+                last_err = e  # the second try failed or cannot be paid: the first try's problem stands
                 break
             model = r.model
             total.tokens_in += r.usage.tokens_in
@@ -198,21 +211,23 @@ class Planner:
             total.cost += r.usage.cost
             ms += r.latency_ms
             try:
-                subs, assembly = parse_plan(_extract_json(r.text), self.max_subtasks)
+                subs, assembly = parse_plan(_extract_json(r.text), limit)
                 return Plan(subs, assembly, r.model, total, ms, r.text)
-            except (PlanError, ValueError) as e:
+            except (PlanError, ValueError, TypeError, AttributeError, RecursionError) as e:
                 last_err = e
                 messages += [{"role": "assistant", "content": r.text},
                              {"role": "user", "content": f"That was not a valid plan ({e}). Reply with the JSON plan only."}]
         raise PlanError(str(last_err), usage=total, model=model)
 
-    async def _call(self, messages):
-        from .gateway import GatewayError
+    async def _call(self, messages, gw: GatewayLike):
         models = [self.model] + self.fallbacks
         for i, m in enumerate(models):
             try:
-                return await self.gw.chat(m, messages, max_tokens=6000, temperature=0.2, json_mode=True,
-                                          reasoning=self.reasoning)
+                return await gw.chat(m, messages, max_tokens=PLAN_MAX_TOKENS, temperature=0.2, json_mode=True,
+                                     reasoning=self.reasoning)
             except GatewayError as e:
-                if i + 1 == len(models) or e.status not in (0, 402, 403, 404, 408, 429, 500, 502, 503, 504, 529):
+                if i + 1 == len(models) or e.status not in FALLBACK_STATUS:
                     raise
+
+
+PLAN_MAX_TOKENS = 6000

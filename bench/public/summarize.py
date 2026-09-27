@@ -3,6 +3,7 @@
 
   python bench/public/summarize.py results/public-live-A.jsonl                 (one run)
   python bench/public/summarize.py results/public-live-B.jsonl --before results/public-live-A.jsonl
+  python bench/public/summarize.py results/public-live-A.jsonl --ci            (with 95% bootstrap intervals)
 
 Prints Markdown: every set, the 60 task core against the other tasks, and (with --before) the same tasks
 before and after, so a change tuned on some tasks can be checked on tasks it never saw.
@@ -11,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 import sys
 from pathlib import Path
 
@@ -64,11 +66,32 @@ ROUTES = [("Basic and standard (tier 1-2), one model",
           ("Split into parts", lambda r: r["taskpenny"]["kind"] == "split")]
 
 
+def bootstrap(rows: list[dict], price: float, n: int = 20_000, seed: int = 2026) -> dict:
+    """95% intervals for the saving (with Jev at its list price) and for "as good or better", by resampling the
+    tasks with replacement. Tasks where the baseline failed are left out, as in the tables."""
+    ok = [r for r in rows if r["baseline"]["status"] == "done"]
+    tp = [r["taskpenny"]["cost"] + jev_list_cost(r, price) for r in ok]
+    base = [r["baseline"]["cost"] for r in ok]
+    good = [r["quality"]["winner"] in ("taskpenny", "tie") for r in ok]
+    rng = random.Random(seed)
+    savings, goods = [], []
+    for _ in range(n):
+        idx = [rng.randrange(len(ok)) for _ in ok]
+        b = sum(base[i] for i in idx)
+        savings.append(100 * (1 - sum(tp[i] for i in idx) / b) if b else 0.0)
+        goods.append(100 * sum(good[i] for i in idx) / len(idx))
+    savings.sort(), goods.sort()
+    lo, hi = int(0.025 * n), int(0.975 * n) - 1
+    return {"saving": (100 * (1 - sum(tp) / sum(base)), savings[lo], savings[hi]),
+            "good": (100 * sum(good) / len(good), goods[lo], goods[hi]), "n": len(ok)}
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("results")
     ap.add_argument("--before")
     ap.add_argument("--seed", type=int, default=2026)
+    ap.add_argument("--ci", action="store_true", help="95%% bootstrap intervals for the whole file")
     a = ap.parse_args()
     rows = load(a.results)
     tasks = [json.loads(x) for x in (HERE / "tasks.jsonl").read_text(encoding="utf-8").splitlines() if x]
@@ -80,8 +103,14 @@ def main() -> None:
             out.append(row(NAMES[s], stats(rs)))
     from taskpenny.catalog import Catalog
     price = Catalog.load().decider.price_in
+    billed = [r for r in rows if sum(((r["taskpenny"].get("run") or {}).get("receipt") or {}).get("by_role", {})
+                                     .get(k, 0) for k in ("decisions", "checks")) > 0]
+    if billed:
+        out += ["", f"Jev was billed by the gateway in {len(billed)} of these {len(rows)} runs, at its list price "
+                    f"(${price:g} per million input tokens): its cost is already in Taskpenny's column."]
     out += ["", f"## With Jev at its list price (${price:g} per million input tokens)", "",
-            "Jev was free on Vercel AI Gateway during these runs. At most, its decisions would have added:", "",
+            "Where Jev was free on Vercel AI Gateway (until 26 September 2026), at most its decisions would have "
+            "added:", "",
             "| Tasks | n | Taskpenny | Jev at list price, at most | One model | Taskpenny cost: free Jev → Jev at list price |",
             "|---|---|---|---|---|---|"]
     groups = ([("**All**", rows)] + [(NAMES[s], [r for r in rows if r["set"] == s]) for s in ORDER]
@@ -102,9 +131,14 @@ def main() -> None:
         out += ["", f"Labelling against the true labels: Taskpenny {sum(r['quality']['taskpenny']['correct'] for r in gold)}"
                     f"/{t}, one model {sum(r['quality']['baseline']['correct'] for r in gold)}/{t}."]
     out += ["", "## By the route Taskpenny chose", "", HEAD] + [row(n, stats([r for r in rows if f(r)])) for n, f in ROUTES]
-    out += ["", "## Tasks used to tune Taskpenny and tasks it never saw", "", HEAD,
-            row("Core 60 (seen while tuning)", stats([r for r in rows if r["id"] in core])),
-            row("Other tasks (never seen)", stats([r for r in rows if r["id"] not in core]))]
+    in_core = [r for r in rows if r["id"] in core]
+    if in_core:  # only the first task file has a core; our own ca/es cases helped calibrate the gate
+        out += ["", "## Tasks used to tune Taskpenny and the others", "", HEAD,
+                row("Core 60 (used while tuning)", stats(in_core)),
+                row("Others, from outside sources", stats([r for r in rows if r["id"] not in core
+                                                          and r["set"] not in ("ca", "es")])),
+                row("Others, our own development cases", stats([r for r in rows if r["id"] not in core
+                                                               and r["set"] in ("ca", "es")]))]
     if a.before:
         before = {r["id"]: r for r in load(a.before)}
         same = [r for r in rows if r["id"] in before]
@@ -116,7 +150,23 @@ def main() -> None:
                     f" characters, one model {sum(len(r['baseline']['answer']) for r in ok) / len(ok):,.0f}."]
     failed = [r["id"] for r in rows if r["baseline"]["status"] != "done"]
     if failed:
-        out += ["", f"Left out because the baseline failed: {', '.join(failed)}."]
+        out += ["", f"Left out because the baseline failed or gave no answer: {', '.join(failed)}."]
+    unread = [r["id"] for r in rows if r["baseline"]["status"] == "done"
+              and r["quality"]["winner"] not in ("taskpenny", "tie", "baseline")]
+    if unread:
+        out += ["", f"Judge verdict that could not be read ({', '.join(unread)}): counted as not as good, so wins, "
+                    "ties and losses add up to one less than n in its rows."]
+    stopped = [r["id"] for r in rows if r["taskpenny"]["status"] not in ("done", "unverified")]
+    if stopped:
+        out += ["", f"Taskpenny runs that ended early (partial or failed), counted as they are: {', '.join(stopped)}."]
+    unverified = [r["id"] for r in rows if r["taskpenny"]["status"] == "unverified"]
+    if unverified:
+        out += ["", f"Taskpenny answers marked unverified (a check did not pass or could not run): {len(unverified)}."]
+    if a.ci:
+        b = bootstrap(rows, price)
+        out += ["", f"95% bootstrap intervals over the {b['n']} compared tasks (20,000 resamples): saving with Jev at "
+                    f"list price {b['saving'][0]:.1f}% ({b['saving'][1]:.1f} to {b['saving'][2]:.1f}); as good or better "
+                    f"{b['good'][0]:.0f}% ({b['good'][1]:.0f} to {b['good'][2]:.0f})."]
     print("\n".join(out))
 
 

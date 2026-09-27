@@ -50,7 +50,6 @@ class Catalog:
     source: str = ""
     reachable: frozenset[str] | None = None  # providers the current keys reach; None: all of them
     min_tier: dict[str, int] = field(default_factory=dict)  # task type -> lowest tier allowed
-    decider_label: str = ""
     ceiling: str = ""  # the strongest model allowed, when capped (with_ceiling)
 
     # ------------------------------------------------------------------ loading

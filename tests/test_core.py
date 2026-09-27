@@ -49,14 +49,17 @@ class ScriptedGateway:
             conf["tier"] = g["tier"][1]
             ans["task_type"] = {"type": "choice", "choice": g["task_type"]}
             ans["answer"] = {"type": "choice", "choice": g["answer"]}
+            if "answer_conf" in g:
+                conf["answer"] = g["answer_conf"]
         elif "ok" in questions:
             p = self.verify.pop(0) if self.verify else 0.95
             ans["ok"] = {"type": "boolean", "probability": p}
-        else:
+        else:  # Jev answering decision items: every question about this item
             text = state["text"]
-            label, c = self.solve.get(text, ("a", 0.9))
-            ans["a"] = {"type": "choice", "choice": label}
-            conf["a"] = c
+            for name in questions:
+                label, c = self.solve.get(text, ("a", 0.9))
+                ans[name] = {"type": "choice", "choice": label}
+                conf[name] = c
         return EvalResult(ans, conf, Usage(100, 0, 100 * 0.042 / 1e6), 5)
 
     async def chat(self, model, messages, *, max_tokens=None, temperature=None, json_mode=False, reasoning=None):
@@ -70,6 +73,8 @@ class ScriptedGateway:
             out = getattr(self, "gap", "NOTHING MISSING")
         elif "Allowed answers" in messages[-1]["content"]:
             out = "2: b"
+        elif system.startswith("A decision model will answer"):
+            out = getattr(self, "extract", '{"fits": false}')
         else:
             out = self.text
         return ChatResult(out, model, Usage(1000, 500, self.catalog.get(model).cost(1000, 500)), 5)
@@ -126,8 +131,9 @@ def test_plan_parsing_cleans_bad_input():
 
 
 def test_plan_limits_and_errors():
-    subs, _ = parse_plan({"subtasks": [{"prompt": f"p{i}"} for i in range(20)]}, 12)
-    assert len(subs) == 12
+    with pytest.raises(PlanError, match="at most 12"):  # never cut silently: the planner is asked again
+        parse_plan({"subtasks": [{"prompt": f"p{i}"} for i in range(20)]}, 12)
+    assert len(parse_plan({"subtasks": [{"prompt": f"p{i}"} for i in range(12)]}, 12)[0]) == 12
     with pytest.raises(PlanError):
         parse_plan({"subtasks": []}, 12)
     assert _extract_json('Sure!\n```json\n{"subtasks": [1]}\n```') == {"subtasks": [1]}
@@ -220,7 +226,8 @@ async def test_split_runs_subtasks_and_jev_solves_choices(catalog):
 async def test_budget_stops_the_run(catalog):
     gw = ScriptedGateway(catalog)
     res = await Engine(gw, catalog, limits=Limits(max_cost=0.000001)).run("Write an email")
-    assert res.status == "partial" and "budget" in res.error
+    # nothing could be paid for: no answer, so the run failed, and it says why
+    assert res.status == "failed" and "budget" in res.error and not gw.chats
 
 
 async def test_no_split_flag(catalog):
@@ -484,50 +491,27 @@ async def test_direct_retries_without_refused_controls(catalog):
     await client.aclose()
 
 
-async def test_llm_decider_answers_jev_questions(catalog):
-    from taskpenny.gateway import ChatResult, Usage
-    from taskpenny.providers import LLMDecider
-
-    async def chat(model, messages, **kw):
-        assert kw["json_mode"] and "QUESTIONS" in messages[-1]["content"]
-        return ChatResult(text='{"split": {"probability": 0.8}, "tier": {"probabilities": {"1": 0.1, "2": 0.7, '
-                               '"3": 0.2, "4": 0}}, "level": {"probabilities": {"0": 0, "1": 3, "2": 1}}}',
-                          model=model, usage=Usage(200, 40, 0.0001, "catalog"), latency_ms=5)
-    d = LLMDecider(chat, catalog.pick(1))
-    r = await d.evaluate({"request": "x"}, {
-        "split": {"type": "boolean", "instructions": "Split?"},
-        "tier": {"type": "choice", "instructions": "Tier?", "criteria": {"1": "a", "2": "b", "3": "c", "4": "d"}},
-        "level": {"type": "score", "instructions": "How bad?", "criteria": ["low", "mid", "high"]}})
-    assert r.boolean("split") == 0.8
-    choice, conf, probs = r.choice("tier")
-    assert choice == "2" and 0 < conf < 1 and sum(probs.values()) == pytest.approx(1)
-    assert r.score("level")[0] == 1.0 and r.usage.cost == 0.0001
-
-
-def test_connect_picks_routes_from_keys(catalog, monkeypatch):
+def test_jev_is_required(catalog, monkeypatch):
     from taskpenny.gateway import Gateway, GatewayError
-    from taskpenny.providers import MultiGateway, connect
+    from taskpenny.providers import MultiGateway, connect, has_jev_key
     for v in ("AI_GATEWAY_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY",
-              "DEEPSEEK_API_KEY", "DASHSCOPE_API_KEY", "TASKPENNY_DIRECT", "TASKPENNY_DECIDER"):
+              "DEEPSEEK_API_KEY", "DASHSCOPE_API_KEY", "TASKPENNY_DIRECT", "TASKPENNY_LOCAL"):
         monkeypatch.delenv(v, raising=False)
-    with pytest.raises(GatewayError):
-        connect(catalog)
-    monkeypatch.setenv("AI_GATEWAY_API_KEY", "v")
-    gw, cat = connect(catalog)
-    assert isinstance(gw, Gateway) and cat is catalog
-    monkeypatch.delenv("AI_GATEWAY_API_KEY")
+    # provider keys and local models are not enough: every decision is Jev's, and Jev is reached through Vercel
     monkeypatch.setenv("ANTHROPIC_API_KEY", "a")
-    gw, cat = connect(catalog)
-    assert isinstance(gw, MultiGateway) and cat.providers("all") == ["anthropic"]
-    assert cat.pick(1).id == "anthropic/claude-haiku-4.5" and cat.decider.id == "anthropic/claude-haiku-4.5"
-    assert gw.route("anthropic/claude-sonnet-5") == "anthropic"
-    with pytest.raises(GatewayError):
-        gw.route("openai/gpt-6-luna")
+    monkeypatch.setenv("TASKPENNY_LOCAL", "qwen3:4b")
+    with pytest.raises(GatewayError, match="AI_GATEWAY_API_KEY") as e:
+        connect(catalog)
+    assert e.value.status == 401 and not has_jev_key()
+    monkeypatch.delenv("TASKPENNY_LOCAL")
     monkeypatch.setenv("AI_GATEWAY_API_KEY", "v")
-    monkeypatch.setenv("TASKPENNY_DIRECT", "anthropic")
     gw, cat = connect(catalog)
+    assert isinstance(gw, Gateway) and cat is catalog  # a provider key alone changes nothing
+    monkeypatch.setenv("TASKPENNY_DIRECT", "anthropic,openai")  # openai has no key: it stays on Vercel
+    gw, cat = connect(catalog)
+    assert isinstance(gw, MultiGateway) and cat.decider.id == "typesafe-ai/jev"
     assert gw.route("anthropic/claude-sonnet-5") == "anthropic" and gw.route("openai/gpt-6-luna") == "vercel"
-    assert gw.decider is None  # Jev still decides
+    assert gw.route("some/judge-model") == "vercel"
 
 
 def test_local_models_go_first_and_keep_cloud_fallbacks(catalog, monkeypatch):
@@ -536,7 +520,7 @@ def test_local_models_go_first_and_keep_cloud_fallbacks(catalog, monkeypatch):
     assert [(m.id, m.tiers, m.direct_id) for m in ms] == [("ollama/qwen3:4b", (1,), "qwen3:4b"),
                                                           ("ollama/qwen3:8b", (1, 2), "qwen3:8b")]
     for v in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY", "DEEPSEEK_API_KEY",
-              "DASHSCOPE_API_KEY", "TASKPENNY_DIRECT", "TASKPENNY_DECIDER"):
+              "DASHSCOPE_API_KEY", "TASKPENNY_DIRECT"):
         monkeypatch.delenv(v, raising=False)
     monkeypatch.setenv("AI_GATEWAY_API_KEY", "v")
     monkeypatch.setenv("TASKPENNY_LOCAL", "qwen3:4b")
@@ -544,11 +528,7 @@ def test_local_models_go_first_and_keep_cloud_fallbacks(catalog, monkeypatch):
     chain = [m.id for m in cat.chain(1)]
     assert chain[0] == "ollama/qwen3:4b" and "openai/gpt-6-luna" in chain  # free first, cloud still behind it
     assert gw.route("ollama/qwen3:4b") == "ollama" and gw.route("openai/gpt-6-luna") == "vercel"
-    assert gw.decider is None  # Jev keeps deciding
-    monkeypatch.delenv("AI_GATEWAY_API_KEY")
-    monkeypatch.setenv("OPENAI_API_KEY", "o")
-    gw, cat = connect(catalog)
-    assert cat.decider.id == "openai/gpt-6-luna"  # a paid basic model decides, not the local one
+    assert cat.decider.id == "typesafe-ai/jev" and "local" in cat.profiles
 
 
 async def test_math_and_code_never_go_below_tier_2(catalog):
@@ -699,6 +679,10 @@ def test_static_demo_page_is_built_and_up_to_date():
     assert html.count('"id": "demo-run"') == 1
     # the published page must match the page and the run of this version: run docs/demo/build.py after changes
     assert (root / "docs" / "demo" / "index.html").read_text(encoding="utf-8") == html
+    # no request to any other site: fonts come from next to the page
+    assert "googleapis" not in html and "gstatic" not in html and "url(fonts/IBMPlexSans-Regular.woff2)" in html
+    assert (root / "docs" / "demo" / "fonts" / "IBMPlexSans-Regular.woff2").exists()
+    assert (root / "docs" / "demo" / "fonts" / "OFL.txt").exists()
 
 
 def test_images_are_refused_not_dropped():
@@ -861,6 +845,11 @@ def test_published_tables_are_reproduced():
                          capture_output=True, text=True, check=True).stdout
     assert "| **All** | 50 | $0.446 | $0.955 | **53% less** | **82%** | 11 / 30 / 9 |" in out
     assert "53.3% less → **52.5% less**" in out
+    opus = subprocess.run([sys.executable, str(root / "bench/public/summarize.py"),
+                           str(root / "bench/public/results/2026-09-27-holdout50-opus.jsonl")],
+                          capture_output=True, text=True, check=True).stdout
+    assert "| **All** | 48 | $0.606 | $2.733 | **78% less** | **50%** | 1 / 23 / 24 |" in opus
+    assert "Left out because the baseline failed or gave no answer: h210, h235." in opus
 
 
 def test_provider_errors_never_carry_key_fragments():

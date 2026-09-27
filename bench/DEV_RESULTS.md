@@ -3,8 +3,9 @@
 These numbers come from 42 requests we wrote ourselves while building Taskpenny (14 in English, 14 in Catalan,
 14 in Spanish; `bench/dev_cases.jsonl`). They were run live through Vercel AI Gateway on 2026-09-25 with the
 settings in this repository. They tell us whether the router behaves as designed. They are **not** a claim
-about answer quality: that is what the public benchmark (roadmap step 3) will measure, with outside task
-sets and blind grading.
+about answer quality: the public benchmark ([bench/public](public/README.md)) measures that, with outside task
+sets and a pairwise judge. The 28 Catalan and Spanish cases are also part of that benchmark's first run, where
+they count as our own cases, not as unseen tasks.
 
 ## What we measured
 

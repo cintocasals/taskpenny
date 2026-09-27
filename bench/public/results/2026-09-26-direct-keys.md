@@ -1,5 +1,8 @@
 # Provider keys without Vercel · 26 September 2026
 
+> **Historical.** Since v0.7.0 Taskpenny requires Jev, reached through Vercel AI Gateway, and the stand-in decider
+> tested here is gone. Provider keys still work next to the Vercel key (`TASKPENNY_DIRECT`).
+
 One request, run three times, each time with a single provider key and no Vercel AI Gateway key, so a small model
 of that provider stood in for Jev. Costs are worked out from the catalog prices (direct calls do not report a cost).
 

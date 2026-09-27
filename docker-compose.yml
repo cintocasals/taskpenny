@@ -1,5 +1,8 @@
 # docker compose up   ->  page and API on http://127.0.0.1:8765 (OpenAI base URL: http://127.0.0.1:8765/v1)
 # Keys come from your shell or an .env file next to this one; they are never baked into the image.
+# AI_GATEWAY_API_KEY is required for real runs (Jev decides every step, through Vercel). Provider keys are
+# optional: they take effect only for the providers listed in TASKPENNY_DIRECT.
+# For TASKPENNY_API_KEY use a generated key: openssl rand -hex 24
 services:
   taskpenny:
     build: .
@@ -17,7 +20,6 @@ services:
       - TASKPENNY_DIRECT
       - TASKPENNY_LOCAL
       - TASKPENNY_CEILING
-      - TASKPENNY_DECIDER
       - TASKPENNY_MAX_COST
       - OLLAMA_HOST=http://ollama:11434
     volumes:

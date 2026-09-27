@@ -170,7 +170,8 @@ def ours() -> list[dict]:
         if c["lang"] in ("ca", "es"):
             out.append({"id": c["id"], "set": c["lang"], "lang": c["lang"], "prompt": c["prompt"],
                         "category": c["expect"]["type"], "judge": "pairwise", "expect": c["expect"],
-                        "source": {"dataset": "Taskpenny dev cases", "id": c["id"], "license": LICENSE["taskpenny"]}})
+                        # the label from before the rename, so the published tasks.jsonl rebuilds byte for byte
+                        "source": {"dataset": "SIAC dev cases", "id": c["id"], "license": LICENSE["taskpenny"]}})
     return out
 
 

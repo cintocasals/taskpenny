@@ -117,12 +117,17 @@ def read_results(path) -> list[dict]:
 
 
 def jev_list_cost(row: dict, price_per_million: float) -> float:
-    """What Jev's decisions in this row would have cost at its list price. Jev was free on Vercel AI Gateway during
-    these runs. The receipt counts every input token; those not spent by a language model call went to Jev or to
-    the planner, so this is an upper bound (Jev's output is free)."""
+    """What Jev's decisions in this row would have cost at its list price, when they were free. Jev was free on
+    Vercel AI Gateway until 26 September 2026. The receipt counts every input token; those not spent by a language
+    model call went to Jev or (before v0.7.0, whose planner calls are logged) to the planner, so this is an upper
+    bound (Jev's output is free). Runs where Jev was billed return 0: it is already in their cost."""
     run = row["taskpenny"].get("run") or {}
+    receipt = run.get("receipt") or {}
+    roles = receipt.get("by_role") or {}
+    if roles.get("decisions", 0) + roles.get("checks", 0) > 0:
+        return 0.0  # Jev was billed in this run: its cost is already in the receipt
     llm = sum(e.get("tokens_in", 0) for e in run.get("events") or [] if e.get("type") == "llm_call")
-    return max(0, (run.get("receipt") or {}).get("tokens_in", 0) - llm) * price_per_million / 1e6
+    return max(0, receipt.get("tokens_in", 0) - llm) * price_per_million / 1e6
 
 
 def core_set(tasks: list[dict], seed: int) -> list[dict]:
@@ -206,10 +211,13 @@ async def run_taskpenny(task, catalog, gw, args) -> dict:
 
 async def run_baseline(task, gw, args) -> dict:
     t0 = time.perf_counter()
+    messages = [{"role": "user", "content": task["prompt"]}]
+    if args.baseline_system == "worker":  # control for the judge's taste: the same instruction Taskpenny's workers get
+        from taskpenny.engine import WORKER_ROOT
+        messages.insert(0, {"role": "system", "content": WORKER_ROOT})
     for attempt in range(args.patience + 1):
         try:
-            r = await gw.chat(args.baseline, [{"role": "user", "content": task["prompt"]}],
-                              max_tokens=args.baseline_tokens)
+            r = await gw.chat(args.baseline, messages, max_tokens=args.baseline_tokens)
             break
         except GatewayError as e:
             if e.status == 429 and attempt < args.patience:  # "no access at this time": wait and ask again
@@ -219,7 +227,7 @@ async def run_baseline(task, gw, args) -> dict:
                     "seconds": round(time.perf_counter() - t0, 1), "model": args.baseline}
     return {"answer": r.text, "status": "done" if r.text.strip() else "empty", "error": "", "cost": r.usage.cost,
             "cost_source": r.usage.cost_source, "tokens_out": r.usage.tokens_out,
-            "seconds": round(time.perf_counter() - t0, 1), "model": r.model}
+            "seconds": round(time.perf_counter() - t0, 1), "model": r.model, "system": args.baseline_system}
 
 
 async def judge(task, taskpenny: str, base: str, gw, args) -> dict:
@@ -285,7 +293,8 @@ def report(rows: list[dict], args) -> str:
     def money(x):
         return f"${x:.4f}"
     lines = [f"# Taskpenny public benchmark · {datetime.now():%Y-%m-%d %H:%M}", "",
-             f"Baseline: `{args.baseline}` · judge: `{args.judge}` · tasks: {len(rows)}", "",
+             f"Baseline: `{args.baseline}`" + (" with Taskpenny's worker instruction" if args.baseline_system == "worker"
+                                               else "") + f" · judge: `{args.judge}` · tasks: {len(rows)}", "",
              "| Set | Tasks | Taskpenny cost | Baseline cost | Saving | Taskpenny wins | Ties | Baseline wins | "
              "Taskpenny as good or better | Taskpenny time | Baseline time |",
              "|---|---|---|---|---|---|---|---|---|---|---|"]
@@ -354,6 +363,9 @@ async def main():
     ap.add_argument("--total-budget", type=float, default=1.0, help="stop starting tasks after this, USD")
     ap.add_argument("--baseline", default=None, help="default: the catalog baseline")
     ap.add_argument("--baseline-tokens", type=int, default=16000)
+    ap.add_argument("--baseline-system", choices=["none", "worker"], default="none",
+                    help="worker: give the baseline the same system instruction as Taskpenny's workers (a control "
+                         "for the judge's preference for complete, step-by-step answers)")
     ap.add_argument("--patience", type=int, default=2, help="when the baseline is refused (429), wait 30 s and "
                                                              "try again this many times")
     ap.add_argument("--judge", default="google/gemini-3.1-pro-preview")
@@ -371,7 +383,7 @@ async def main():
     args.reuse, args.reuse_base = {}, {}
     if args.reuse_taskpenny:
         for r in read_results(args.reuse_taskpenny):
-            if r["taskpenny"]["status"] == "done":
+            if r["taskpenny"]["status"] in ("done", "unverified"):
                 args.reuse[r["id"]] = r["taskpenny"] | {"reused_from": Path(args.reuse_taskpenny).name}
     tasks = [json.loads(line) for line in Path(args.tasks).read_text(encoding="utf-8").splitlines() if line]
     if args.sets:

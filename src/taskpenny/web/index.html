@@ -4,10 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Taskpenny</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
+/* IBM Plex (SIL Open Font License, fonts/OFL.txt), served with the page: no request leaves for a font service */
+@font-face{font-family:"IBM Plex Sans";font-weight:400;font-display:swap;src:url(fonts/IBMPlexSans-Regular.woff2) format("woff2")}
+@font-face{font-family:"IBM Plex Sans";font-weight:500;font-display:swap;src:url(fonts/IBMPlexSans-Medium.woff2) format("woff2")}
+@font-face{font-family:"IBM Plex Sans";font-weight:600;font-display:swap;src:url(fonts/IBMPlexSans-SemiBold.woff2) format("woff2")}
+@font-face{font-family:"IBM Plex Mono";font-weight:400;font-display:swap;src:url(fonts/IBMPlexMono-Regular.woff2) format("woff2")}
+@font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(fonts/IBMPlexMono-Medium.woff2) format("woff2")}
+@font-face{font-family:"IBM Plex Mono";font-weight:600;font-display:swap;src:url(fonts/IBMPlexMono-SemiBold.woff2) format("woff2")}
 :root{
   --bg:#F4F2ED; --panel:#FAF9F5; --ink:#12161A; --lead:#6E767C; --line:#DCD9D2; --soft:#E9E6DF;
   --oxide:#C1440E; --on-ink:#F4F2ED;
@@ -66,6 +70,9 @@ a.ghost{color:inherit;text-decoration:none;display:inline-block}
 .running .glyph,.running .nid{color:var(--oxide)}
 .running .card{border-color:var(--oxide)}
 .done .ttl{color:var(--ink)} .pending .ttl{color:var(--lead)} .failed .ttl{text-decoration:line-through}
+.unverified .glyph,.partial .glyph{color:var(--oxide)}
+.warnings{border:1px solid var(--oxide);border-left-width:4px;padding:10px 14px;margin:0 14px 14px;font-size:14px}
+.warnings b{display:block;margin-bottom:4px}.warnings ul{margin:0;padding-left:18px}
 .nid{font-family:var(--mono);font-size:12px;color:var(--lead);margin-right:6px}
 .ttl{font-weight:500}
 .meta{grid-column:2 / 4;display:flex;flex-wrap:wrap;gap:6px 10px;font-family:var(--mono);font-size:11px;color:var(--lead)}
@@ -116,6 +123,7 @@ footer{font-family:var(--mono);font-size:11px;color:var(--lead);border-top:1px s
     <span class="mode" id="mode"></span>
     <label class="label" for="lang" data-i18n="language"></label>
     <select id="lang"><option value="en">English</option><option value="ca">Català</option><option value="es">Español</option></select>
+    <button class="ghost" id="logout" type="button" hidden data-i18n="logout"></button>
   </header>
 
   <section class="login" id="login" hidden>
@@ -132,6 +140,7 @@ footer{font-family:var(--mono);font-size:11px;color:var(--lead);border-top:1px s
     <label class="label" for="req" data-i18n="request"></label>
     <textarea id="req"></textarea>
     <p class="static-note" id="static-note" hidden></p>
+    <p class="static-note" id="key-note" hidden data-i18n="noKey"></p>
     <div class="examples"><span class="label" data-i18n="examples"></span></div>
     <div class="opts">
       <label><span data-i18n="profile"></span> <select id="profile"></select></label>
@@ -171,6 +180,7 @@ footer{font-family:var(--mono);font-size:11px;color:var(--lead);border-top:1px s
   <section class="panel">
     <div class="head"><span class="label" data-i18n="answer"></span><button class="ghost" id="copy" data-i18n="copy"></button></div>
     <div class="answer" id="answer"><p class="empty" data-i18n="answerEmpty"></p></div>
+    <div class="warnings" id="warnings" role="status" hidden></div>
   </section>
 
   <section class="panel" id="receipt-box" hidden>
@@ -205,15 +215,16 @@ const I18N = {
     detailEmpty:"Click a task in the tree to see its prompt, the decisions about it and its result.", answerEmpty:"The answer appears here when the run ends.",
     noRuns:"No saved runs yet.", example:"Example", replayMode:"Replay of a real run", staticNote:"A real Taskpenny run, replayed in your browser: no key, no cost, nothing to install. To run your own requests, install it and open the live page:", staticResults:"Measured results", live:"LIVE", dryMode:"DRY RUN", prompt:"Prompt", result:"Result", notes:"Hand-off notes", problem:"Problem reported",
     gate:"Jev decided", split:"split", tier:"tier", conf:"confidence", raised:"raised one tier (Jev unsure)", floored:"minimum tier for this kind of task", type:"task type", answerType:"answer",
-    model:"model", attempts:"attempts", cost:"cost", status:"status", waiting:"waiting", jev:"JEV", done:"done", failed:"failed", partial:"stopped early",
-    footer:"Taskpenny · open source (MIT) · by Cinto Casals, SerIA Nativa. Decisions by Jev (TypeSafe AI) through Vercel AI Gateway. Keys stay on your computer.",
+    model:"model", attempts:"attempts", cost:"cost", status:"status", waiting:"waiting", pending:"waiting", jev:"JEV", done:"done", failed:"failed", partial:"stopped early", unverified:"not verified",
+    warnTitle:"Taskpenny carried on, but check this:", tokens:"tokens in → out", logout:"Sign out", noKey:"No AI_GATEWAY_API_KEY: every run here is simulated. Taskpenny needs Jev, which is reached through Vercel AI Gateway.",
+    footer:"Taskpenny · open source (MIT) · by Cinto Casals, SerIA Nativa. Decisions by Jev (TypeSafe AI) through Vercel AI Gateway. Keys stay where Taskpenny runs: never sent to this page, never written to a run file.",
     legend:"Tier 1 basic to 4 critical: Jev picks it and Taskpenny uses the cheapest model of that tier. JEV: solved by Jev, no language model. Split %: how likely Jev thinks splitting helps. Check: how likely Jev thinks a result meets its criteria (0.6 passes). Gap filling: a cheap model adds only what the final check found missing.",
-    flow:"What Taskpenny did", receiptL:"Cost receipt", receipt:"Cost receipt", total:"Total", simulated:"simulated: catalog prices, placeholder answers",
+    flow:"What Taskpenny did", receipt:"Cost receipt", total:"Total", simulated:"simulated: catalog prices, placeholder answers",
     roles:{planning:"Planning", work:"Work (cheapest models)", decisions:"Jev decisions", checks:"Jev checks", assembly:"Assembly and gap filling"},
     stages:{gate:"Jev gate decisions", plan:"plan", run:"tasks by models", jevs:"tasks solved by Jev", checks:"Jev checks", assemble:"assembly", final:"final check", calls:"calls"},
     baseMethod:"Estimate: the same request sent once to the baseline model, with an answer as long as Taskpenny's, scaled by the hidden reasoning Taskpenny's own models used in this run, and no retries.",
     tipTier:"Tier: 1 basic, 2 standard, 3 advanced, 4 critical. Jev picks it; Taskpenny uses the cheapest model of that tier.",
-    tipSplit:"Jev's probability that splitting this request helps.", tipConf:"How sure Jev was of the tier (0 to 1). Below 0.6 Taskpenny goes one tier up.",
+    tipSplit:"Jev's probability that splitting this request helps.", tipConf:"How sure Jev was of the tier (0 to 1). Below 0.6, Taskpenny goes one tier up if at least a quarter of Jev's doubt points to higher tiers.",
     tipCheck:"Jev's probability that the result meets the task's success criteria. 0.6 or more passes.",
     types:{code:"code", writing:"writing", analysis:"analysis", research:"research", math:"maths", translation:"translation", text:"text", choice:"choice", yesno:"yes/no", score:"score"},
     planBy:"plan", assembleBy:"assembly", tierL:"Tier",
@@ -221,26 +232,27 @@ const I18N = {
     ex1t:"Prepare the launch of our new online course on AI for small businesses: 1) define three buyer personas, 2) write the landing page copy for the main persona, 3) write a 3-email welcome sequence, 4) list 10 LinkedIn post ideas, and 5) for each post idea, decide whether it is educational, promotional or social proof.",
     ex2t:"Here are five customer comments. For each one, say whether it is a bug report, a feature request or praise, and then write a one-paragraph summary for the product team. 1) \"Export to PDF crashes on Safari.\" 2) \"Would love a dark mode!\" 3) \"Best invoicing tool we have used.\" 4) \"The totals are wrong when I add a discount.\" 5) \"Please add Catalan to the languages.\"",
     ex3t:"Write a short, friendly email to a client to move tomorrow's 10:00 meeting to Thursday at the same time.",
-    ev:{run_started:"started", gate:"gate", plan:"plan", split_rejected:"split would not pay: one go", route:"route", llm_call:"call", verify:"check", repair:"repair", jev_solve:"Jev solved", fallback:"fallback",
-        model_fallback:"model refused", aggregate:"assemble", final_check:"final check", node_done:"done", node_failed:"failed", budget_exceeded:"budget", error:"error", run_done:"finished"}},
+    ev:{run_started:"started", gate:"gate", plan:"plan", plan_failed:"no usable plan: one go", split_rejected:"split would not pay: one go", route:"route", llm_call:"call", verify:"check", repair:"repair", jev_extract:"question for Jev", jev_declined:"not a question for Jev", jev_solve:"Jev solved", fallback:"fallback",
+        model_fallback:"next model", aggregate:"assemble", final_check:"final check", warning:"warning", node_done:"done", node_failed:"failed", budget_exceeded:"budget", error:"error", run_done:"finished"}},
   ca: {tagline:"Parteix una petició gran en tasques petites i envia cadascuna al model més barat que la pot fer bé. Decideix Jev.",
     language:"Idioma", request:"La teva petició", rootTitle:"La teva petició", examples:"Prova", profile:"Proveïdors", budget:"Pressupost", dry:"Simulació (sense clau ni cost)",
     nosplit:"No dividir", run:"Executa", running:"Treballant…", spent:"Gastat", calls:"Crides", time:"Temps", baseline:"Un sol model potent (est.)", saving:"Estalvi estimat",
-    costlier:"Cost de més estimat", tree:"Arbre de tasques", detail:"Tasca seleccionada", answer:"Resposta final", copy:"Copia", copied:"Copiat", log:"Tots els passos",
+    costlier:"Sobrecost estimat", tree:"Arbre de tasques", detail:"Tasca seleccionada", answer:"Resposta final", copy:"Copia", copied:"Copiat", log:"Tots els passos",
     loginTitle:"Clau d'aquest Taskpenny", loginHint:"Aquest Taskpenny està protegit. Escriu-ne la clau una vegada; aquest navegador la recordarà 30 dies.", loginButton:"Entra", loginWrong:"La clau no és correcta.",
-    history:"Execucions desades", speed:"Velocitat de repetició", watch:"Segueix", working:"treballant", fromApi:"des de l'API", replay:"Repeteix", open:"Obre", export:"Exporta", treeEmpty:"Executa una petició per veure com Taskpenny la divideix i qui fa cada part.",
+    history:"Execucions desades", speed:"Velocitat de reproducció", watch:"Segueix", working:"treballant", fromApi:"des de l'API", replay:"Reprodueix", open:"Obre", export:"Exporta", treeEmpty:"Executa una petició per veure com Taskpenny la divideix i qui fa cada part.",
     detailEmpty:"Clica una tasca de l'arbre per veure'n el prompt, què se n'ha decidit i el resultat.", answerEmpty:"La resposta surt aquí quan acaba l'execució.",
-    noRuns:"Encara no hi ha cap execució desada.", example:"Exemple", replayMode:"Repetició d'una execució real", staticNote:"Una execució real de Taskpenny, repetida al teu navegador: sense clau, sense cost i sense instal·lar res. Per fer les teves peticions, instal·la'l i obre la pàgina en directe:", staticResults:"Resultats mesurats", live:"EN VIU", dryMode:"SIMULACIÓ", prompt:"Prompt", result:"Resultat", notes:"Notes de traspàs", problem:"Problema detectat",
+    noRuns:"Encara no hi ha cap execució desada.", example:"Exemple", replayMode:"Reproducció d'una execució real", staticNote:"Una execució real de Taskpenny, reproduïda al teu navegador: sense clau, sense cost i sense instal·lar res. Per fer les teves peticions, instal·la'l i obre la pàgina en directe:", staticResults:"Resultats mesurats", live:"EN DIRECTE", dryMode:"SIMULACIÓ", prompt:"Prompt", result:"Resultat", notes:"Notes de traspàs", problem:"Problema detectat",
     gate:"Jev ha decidit", split:"dividir", tier:"nivell", conf:"confiança", raised:"un nivell amunt (Jev dubtava)", floored:"nivell mínim per a aquest tipus de tasca", type:"tipus de tasca", answerType:"resposta",
-    model:"model", attempts:"intents", cost:"cost", status:"estat", waiting:"en espera", jev:"JEV", done:"fet", failed:"fallat", partial:"aturat abans",
-    footer:"Taskpenny · codi obert (MIT) · de Cinto Casals, SerIA Nativa. Decideix Jev (TypeSafe AI) per Vercel AI Gateway. Les claus no surten del teu ordinador.",
-    legend:"Nivell 1 bàsic a 4 crític: el tria Jev i Taskpenny fa servir el model més barat d'aquest nivell. JEV: ho ha resolt Jev, sense model de llenguatge. Dividir %: com de probable veu Jev que dividir ajudi. Comprovació: com de probable veu Jev que el resultat compleixi el criteri (amb 0,6 passa). Complements: un model barat afegeix només el que la comprovació final troba a faltar.",
+    model:"model", attempts:"intents", cost:"cost", status:"estat", waiting:"en espera", pending:"en espera", jev:"JEV", done:"fet", failed:"fallat", partial:"aturat abans d'hora", unverified:"sense verificar",
+    warnTitle:"Taskpenny ha continuat, però revisa això:", tokens:"tokens d'entrada → de sortida", logout:"Tanca la sessió", noKey:"No hi ha AI_GATEWAY_API_KEY: aquí totes les execucions són simulades. Taskpenny necessita Jev, i a Jev s'hi arriba a través de Vercel AI Gateway.",
+    footer:"Taskpenny · codi obert (MIT) · de Cinto Casals, SerIA Nativa. Decideix Jev (TypeSafe AI) a través de Vercel AI Gateway. Les claus es queden on funciona Taskpenny: no s'envien mai a aquesta pàgina ni s'escriuen als fitxers d'execució.",
+    legend:"Nivell 1 bàsic a 4 crític: el tria Jev i Taskpenny fa servir el model més barat d'aquest nivell. JEV: ho ha resolt Jev, sense model de llenguatge. Dividir %: la probabilitat, segons Jev, que dividir ajudi. Comprovació: la probabilitat, segons Jev, que el resultat compleixi el criteri (amb 0,6 passa). Complements: un model barat afegeix només el que la comprovació final troba a faltar.",
     flow:"Què ha fet Taskpenny", receipt:"Rebut de cost", total:"Total", simulated:"simulat: preus del catàleg, respostes de mostra",
     roles:{planning:"Planificació", work:"Feina (models més barats)", decisions:"Decisions de Jev", checks:"Comprovacions de Jev", assembly:"Unió i complements"},
     stages:{gate:"decisions del filtre de Jev", plan:"pla", run:"tasques fetes per models", jevs:"tasques resoltes per Jev", checks:"comprovacions de Jev", assemble:"unió", final:"comprovació final", calls:"crides"},
     baseMethod:"Estimació: la mateixa petició enviada una sola vegada al model de referència, amb una resposta tan llarga com la de Taskpenny, ajustada pel raonament ocult que han fet servir els models de Taskpenny en aquesta execució, i sense reintents.",
     tipTier:"Nivell: 1 bàsic, 2 estàndard, 3 avançat, 4 crític. El tria Jev; Taskpenny fa servir el model més barat d'aquest nivell.",
-    tipSplit:"Probabilitat, segons Jev, que dividir aquesta petició ajudi.", tipConf:"Com n'estava de segur Jev del nivell (de 0 a 1). Per sota de 0,6, Taskpenny puja un nivell.",
+    tipSplit:"Probabilitat, segons Jev, que dividir aquesta petició ajudi.", tipConf:"Com n'estava de segur Jev del nivell (de 0 a 1). Per sota de 0,6, Taskpenny puja un nivell si almenys una quarta part del dubte de Jev apunta a nivells més alts.",
     tipCheck:"Probabilitat, segons Jev, que el resultat compleixi el criteri d'èxit de la tasca. Amb 0,6 o més, passa.",
     types:{code:"codi", writing:"redacció", analysis:"anàlisi", research:"recerca", math:"càlcul", translation:"traducció", text:"text", choice:"tria", yesno:"sí/no", score:"nota"},
     planBy:"pla", assembleBy:"unió", tierL:"Nivell",
@@ -248,35 +260,36 @@ const I18N = {
     ex1t:"Prepara el llançament del nostre nou curs en línia d'IA per a petites empreses: 1) defineix tres perfils de client, 2) escriu el text de la pàgina de venda per al perfil principal, 3) escriu una seqüència de benvinguda de tres correus, 4) proposa 10 idees de posts per a LinkedIn, i 5) per a cada idea, decideix si és educativa, promocional o de prova social.",
     ex2t:"Tinc aquests cinc comentaris de clients. Per a cadascun, digues si és un error, una petició de funcionalitat o un elogi, i després escriu un paràgraf de resum per a l'equip de producte. 1) «L'exportació a PDF es penja a Safari.» 2) «M'encantaria un mode fosc!» 3) «La millor eina de facturació que hem fet servir.» 4) «Els totals surten malament quan hi poso un descompte.» 5) «Afegiu el català als idiomes, si us plau.»",
     ex3t:"Escriu un correu curt i amable a un client per passar la reunió de demà a les 10 a dijous a la mateixa hora.",
-    ev:{run_started:"inici", gate:"filtre", plan:"pla", split_rejected:"dividir no surt a compte: d'una vegada", route:"encamina", llm_call:"crida", verify:"comprova", repair:"repara", jev_solve:"Jev resol", fallback:"alternativa",
-        model_fallback:"model refusat", aggregate:"uneix", final_check:"comprovació final", node_done:"fet", node_failed:"fallat", budget_exceeded:"pressupost", error:"error", run_done:"acabat"}},
+    ev:{run_started:"inici", gate:"filtre", plan:"pla", plan_failed:"sense pla útil: d'una vegada", split_rejected:"dividir no surt a compte: d'una vegada", route:"encamina", llm_call:"crida", verify:"comprova", repair:"repara", jev_extract:"pregunta per a Jev", jev_declined:"no és una pregunta per a Jev", jev_solve:"Jev resol", fallback:"alternativa",
+        model_fallback:"model següent", aggregate:"uneix", final_check:"comprovació final", warning:"avís", node_done:"fet", node_failed:"fallat", budget_exceeded:"pressupost", error:"error", run_done:"acabat"}},
   es: {tagline:"Divide una petición grande en tareas pequeñas y envía cada una al modelo más barato que la hace bien. Decide Jev.",
     language:"Idioma", request:"Tu petición", rootTitle:"Tu petición", examples:"Prueba", profile:"Proveedores", budget:"Presupuesto", dry:"Simulación (sin clave ni coste)",
     nosplit:"No dividir", run:"Ejecutar", running:"Trabajando…", spent:"Gastado", calls:"Llamadas", time:"Tiempo", baseline:"Un solo modelo potente (est.)", saving:"Ahorro estimado",
-    costlier:"Coste de más estimado", tree:"Árbol de tareas", detail:"Tarea seleccionada", answer:"Respuesta final", copy:"Copiar", copied:"Copiado", log:"Todos los pasos",
+    costlier:"Sobrecoste estimado", tree:"Árbol de tareas", detail:"Tarea seleccionada", answer:"Respuesta final", copy:"Copiar", copied:"Copiado", log:"Todos los pasos",
     loginTitle:"Clave de este Taskpenny", loginHint:"Este Taskpenny está protegido. Escribe su clave una vez; este navegador la recordará 30 días.", loginButton:"Entrar", loginWrong:"La clave no es correcta.",
-    history:"Ejecuciones guardadas", speed:"Velocidad de repetición", watch:"Seguir", working:"trabajando", fromApi:"desde la API", replay:"Repetir", open:"Abrir", export:"Exportar", treeEmpty:"Ejecuta una petición para ver cómo Taskpenny la divide y quién hace cada parte.",
+    history:"Ejecuciones guardadas", speed:"Velocidad de reproducción", watch:"Seguir", working:"trabajando", fromApi:"desde la API", replay:"Reproducir", open:"Abrir", export:"Exportar", treeEmpty:"Ejecuta una petición para ver cómo Taskpenny la divide y quién hace cada parte.",
     detailEmpty:"Haz clic en una tarea del árbol para ver su prompt, lo que se ha decidido y el resultado.", answerEmpty:"La respuesta aparece aquí cuando termina la ejecución.",
-    noRuns:"Todavía no hay ejecuciones guardadas.", example:"Ejemplo", replayMode:"Repetición de una ejecución real", staticNote:"Una ejecución real de Taskpenny, repetida en tu navegador: sin clave, sin coste y sin instalar nada. Para hacer tus peticiones, instálalo y abre la página en directo:", staticResults:"Resultados medidos", live:"EN VIVO", dryMode:"SIMULACIÓN", prompt:"Prompt", result:"Resultado", notes:"Notas de traspaso", problem:"Problema detectado",
+    noRuns:"Todavía no hay ejecuciones guardadas.", example:"Ejemplo", replayMode:"Reproducción de una ejecución real", staticNote:"Una ejecución real de Taskpenny, reproducida en tu navegador: sin clave, sin coste y sin instalar nada. Para hacer tus peticiones, instálalo y abre la página en directo:", staticResults:"Resultados medidos", live:"EN DIRECTO", dryMode:"SIMULACIÓN", prompt:"Prompt", result:"Resultado", notes:"Notas de traspaso", problem:"Problema detectado",
     gate:"Jev ha decidido", split:"dividir", tier:"nivel", conf:"confianza", raised:"un nivel más (Jev dudaba)", floored:"nivel mínimo para este tipo de tarea", type:"tipo de tarea", answerType:"respuesta",
-    model:"modelo", attempts:"intentos", cost:"coste", status:"estado", waiting:"en espera", jev:"JEV", done:"hecho", failed:"fallado", partial:"parado antes",
-    footer:"Taskpenny · código abierto (MIT) · de Cinto Casals, SerIA Nativa. Decide Jev (TypeSafe AI) vía Vercel AI Gateway. Las claves no salen de tu ordenador.",
-    legend:"Nivel 1 básico a 4 crítico: lo elige Jev y Taskpenny usa el modelo más barato de ese nivel. JEV: lo ha resuelto Jev, sin modelo de lenguaje. Dividir %: lo probable que ve Jev que dividir ayude. Comprobación: lo probable que ve Jev que el resultado cumpla el criterio (con 0,6 pasa). Complementos: un modelo barato añade solo lo que la comprobación final echa en falta.",
+    model:"modelo", attempts:"intentos", cost:"coste", status:"estado", waiting:"en espera", pending:"en espera", jev:"JEV", done:"hecha", failed:"fallida", partial:"parada antes de tiempo", unverified:"sin verificar",
+    warnTitle:"Taskpenny ha seguido, pero revisa esto:", tokens:"tokens de entrada → de salida", logout:"Cerrar sesión", noKey:"No hay AI_GATEWAY_API_KEY: aquí todas las ejecuciones son simuladas. Taskpenny necesita Jev, y a Jev se llega a través de Vercel AI Gateway.",
+    footer:"Taskpenny · código abierto (MIT) · de Cinto Casals, SerIA Nativa. Decide Jev (TypeSafe AI) a través de Vercel AI Gateway. Las claves se quedan donde funciona Taskpenny: nunca se envían a esta página ni se escriben en los archivos de ejecución.",
+    legend:"Nivel 1 básico a 4 crítico: lo elige Jev y Taskpenny usa el modelo más barato de ese nivel. JEV: lo ha resuelto Jev, sin modelo de lenguaje. Dividir %: la probabilidad, según Jev, de que dividir ayude. Comprobación: la probabilidad, según Jev, de que el resultado cumpla el criterio (con 0,6 pasa). Complementos: un modelo barato añade solo lo que la comprobación final echa en falta.",
     flow:"Qué ha hecho Taskpenny", receipt:"Recibo de coste", total:"Total", simulated:"simulado: precios del catálogo, respuestas de muestra",
     roles:{planning:"Planificación", work:"Trabajo (modelos más baratos)", decisions:"Decisiones de Jev", checks:"Comprobaciones de Jev", assembly:"Unión y complementos"},
     stages:{gate:"decisiones del filtro de Jev", plan:"plan", run:"tareas hechas por modelos", jevs:"tareas resueltas por Jev", checks:"comprobaciones de Jev", assemble:"unión", final:"comprobación final", calls:"llamadas"},
     baseMethod:"Estimación: la misma petición enviada una sola vez al modelo de referencia, con una respuesta tan larga como la de Taskpenny, ajustada por el razonamiento oculto que han usado los modelos de Taskpenny en esta ejecución, y sin reintentos.",
     tipTier:"Nivel: 1 básico, 2 estándar, 3 avanzado, 4 crítico. Lo elige Jev; Taskpenny usa el modelo más barato de ese nivel.",
-    tipSplit:"Probabilidad, según Jev, de que dividir esta petición ayude.", tipConf:"Lo seguro que estaba Jev del nivel (de 0 a 1). Por debajo de 0,6, Taskpenny sube un nivel.",
+    tipSplit:"Probabilidad, según Jev, de que dividir esta petición ayude.", tipConf:"Lo seguro que estaba Jev del nivel (de 0 a 1). Por debajo de 0,6, Taskpenny sube un nivel si al menos una cuarta parte de la duda de Jev apunta a niveles más altos.",
     tipCheck:"Probabilidad, según Jev, de que el resultado cumpla el criterio de éxito de la tarea. Con 0,6 o más, pasa.",
     types:{code:"código", writing:"redacción", analysis:"análisis", research:"búsqueda", math:"cálculo", translation:"traducción", text:"texto", choice:"elección", yesno:"sí/no", score:"nota"},
     planBy:"plan", assembleBy:"unión", tierL:"Nivel",
     ex1:"Plan de lanzamiento", ex2:"Clasificar comentarios", ex3:"Correo corto",
-    ex1t:"Prepara el lanzamiento de nuestro nuevo curso online de IA para pequeñas empresas: 1) define tres perfiles de cliente, 2) escribe el texto de la página de venta para el perfil principal, 3) escribe una secuencia de bienvenida de tres correos, 4) propone 10 ideas de posts para LinkedIn, y 5) para cada idea, decide si es educativa, promocional o de prueba social.",
+    ex1t:"Prepara el lanzamiento de nuestro nuevo curso online de IA para pequeñas empresas: 1) define tres perfiles de cliente, 2) escribe el texto de la página de venta para el perfil principal, 3) escribe una secuencia de bienvenida de tres correos, 4) propón 10 ideas de posts para LinkedIn, y 5) para cada idea, decide si es educativa, promocional o de prueba social.",
     ex2t:"Tengo estos cinco comentarios de clientes. Para cada uno, di si es un error, una petición de funcionalidad o un elogio, y después escribe un párrafo de resumen para el equipo de producto. 1) «La exportación a PDF se cuelga en Safari.» 2) «¡Me encantaría un modo oscuro!» 3) «La mejor herramienta de facturación que hemos usado.» 4) «Los totales salen mal cuando pongo un descuento.» 5) «Añadid el catalán a los idiomas, por favor.»",
     ex3t:"Escribe un correo corto y amable a un cliente para pasar la reunión de mañana a las 10 al jueves a la misma hora.",
-    ev:{run_started:"inicio", gate:"filtro", plan:"plan", split_rejected:"dividir no compensa: de una vez", route:"enruta", llm_call:"llamada", verify:"comprueba", repair:"repara", jev_solve:"Jev resuelve", fallback:"alternativa",
-        model_fallback:"modelo rechazado", aggregate:"une", final_check:"comprobación final", node_done:"hecho", node_failed:"fallado", budget_exceeded:"presupuesto", error:"error", run_done:"terminado"}}
+    ev:{run_started:"inicio", gate:"filtro", plan:"plan", plan_failed:"sin plan útil: de una vez", split_rejected:"dividir no compensa: de una vez", route:"enruta", llm_call:"llamada", verify:"comprueba", repair:"repara", jev_extract:"pregunta para Jev", jev_declined:"no es una pregunta para Jev", jev_solve:"Jev resuelve", fallback:"alternativa",
+        model_fallback:"modelo siguiente", aggregate:"une", final_check:"comprobación final", warning:"aviso", node_done:"hecha", node_failed:"fallida", budget_exceeded:"presupuesto", error:"error", run_done:"terminado"}}
 };
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -304,7 +317,7 @@ function applyLang(){
   loadHistory();
 }
 
-function fresh(){ return {nodes:Object.create(null), order:[], cost:0, calls:0, t:0, receipt:null, answer:"", status:"", log:[], error:""}; }
+function fresh(){ return {nodes:Object.create(null), order:[], cost:0, calls:0, t:0, receipt:null, answer:"", status:"", log:[], error:"", warnings:[]}; }
 
 function node(id){ if (!S.nodes[id]) { S.nodes[id] = {id, title:id, status:"pending", children:[], depth:0}; S.order.push(id); } return S.nodes[id]; }
 
@@ -322,20 +335,22 @@ function apply(ev){
       n.children = []; n.kind = "llm"; n.planRejected = true; S.calls += (ev.parts_tiers || []).length; break;
     case "route": n.model = ev.model; n.tier = ev.tier; n.kind = "llm"; break;
     case "llm_call": S.cost += ev.cost || 0; S.calls++; break;
-    case "jev_solve": n.kind = "jev"; n.model = info.decider || "typesafe-ai/jev"; break;
+    case "jev_solve": n.kind = "jev"; n.jev = true; n.model = info.decider || "typesafe-ai/jev"; break;
     case "aggregate": n.model = ev.model; break;
     case "model_fallback": n.model = ev.next; break;
     case "node_done": Object.assign(n, {status: ev.status, model: ev.model || n.model, tier: ev.tier, cost: ev.cost, kind: ev.kind || n.kind,
-      result: ev.result, notes: ev.notes, problem: ev.problem, attempts: ev.attempts}); break;
+      result: ev.result, notes: ev.notes, problem: ev.problem, attempts: ev.attempts, warning: ev.warning,
+      tokensIn: ev.tokens_in, tokensOut: ev.tokens_out, seconds: ev.seconds}); break;
     case "run_done": S.receipt = ev.receipt; S.answer = ev.answer || S.answer; S.status = ev.status; S.cost = ev.receipt ? ev.receipt.total_cost : S.cost;
-      if (ev.error) S.error = ev.error; break;
+      if (ev.error) S.error = ev.error; if (Array.isArray(ev.warnings)) S.warnings = ev.warnings.slice(); break;
+    case "warning": if (!S.warnings.includes(ev.message)) S.warnings.push((ev.node && ev.node !== "root" ? ev.node + ": " : "") + ev.message); break;
     case "error": case "budget_exceeded": case "node_failed": S.error = ev.message; break;
   }
   if (["gate","verify","jev_solve","final_check","plan"].includes(ev.type)) { S.cost += ev.cost || 0; S.calls++; }
   S.log.push(ev);
 }
 
-function glyph(st){ return {done:"■", running:"▶", failed:"⊠", pending:"□"}[st] || "□"; }
+function glyph(st){ return {done:"■", running:"▶", failed:"⊠", pending:"□", unverified:"◩", partial:"◧"}[st] || "□"; }
 
 function renderTree(){
   const box = $("tree"); box.replaceChildren();
@@ -368,6 +383,8 @@ function renderDetail(){
   h += "<dt>" + esc(L.status) + "</dt><dd>" + esc(L[n.status] || n.status) + "</dd>";
   if (n.model) h += "<dt>" + esc(L.model) + "</dt><dd>" + esc(n.model) + (n.tier ? " · T" + esc(n.tier) : "") + "</dd>";
   if (n.cost) h += "<dt>" + esc(L.cost) + "</dt><dd>" + money(n.cost) + "</dd>";
+  if (n.tokensIn != null) h += "<dt>" + esc(L.tokens) + "</dt><dd>" + esc(n.tokensIn) + " → " + esc(n.tokensOut) + "</dd>";
+  if (n.seconds != null) h += "<dt>" + esc(L.time) + "</dt><dd>" + esc(Number(n.seconds).toFixed(1)) + " s</dd>";
   const ty = k => (L.types && L.types[k]) || k;
   if (g) h += "<dt>" + esc(L.gate) + "</dt><dd><span title=\"" + esc(L.tipSplit) + "\">" + esc(L.split) + " " + esc((Number(g.split) * 100).toFixed(0)) + "%</span> · <span title=\"" + esc(L.tipTier) + "\">" + esc(L.tier) + " " + esc(g.tier_raw) + "</span>" +
     (g.tier_confidence != null ? " <span title=\"" + esc(L.tipConf) + "\">(" + esc(L.conf) + " " + g.tier_confidence.toFixed(2) + ")</span>" : "") +
@@ -378,6 +395,7 @@ function renderDetail(){
   if (n.result) h += '<div><div class="label">' + esc(L.result) + '</div><div class="box rich">' + md(n.result) + "</div></div>";
   if (n.notes) h += '<div><div class="label">' + esc(L.notes) + '</div><div class="box">' + esc(n.notes) + "</div></div>";
   if (n.problem) h += '<div><div class="label">' + esc(L.problem) + '</div><div class="box">' + esc(n.problem) + "</div></div>";
+  if (n.warning) h += '<div><div class="label">' + esc(L.ev.warning) + '</div><div class="box">' + esc(n.warning) + "</div></div>";
   box.innerHTML = h;
 }
 
@@ -421,7 +439,9 @@ function renderLog(){
     else if (ev.type === "plan") what = ev.subtasks.length + " · " + short(ev.model);
     else if (ev.type === "split_rejected") what = L.tier + " " + (ev.parts_tiers || []).join(", ");
     else if (ev.type === "route" || ev.type === "aggregate") what = short(ev.model) + (ev.tier ? " T" + ev.tier : "");
-    else if (ev.type === "verify" || ev.type === "final_check") what = (ev.ok ? "ok" : "✗") + " " + ev.probability;
+    else if (ev.type === "verify" || ev.type === "final_check") what = ev.ok == null ? "?" : (ev.ok ? "ok" : "✗") + " " + ev.probability;
+    else if (ev.type === "jev_extract") what = ev.items + " · " + ((L.types && L.types[ev.kind]) || ev.kind);
+    else if (ev.type === "jev_declined") what = ev.reason || "";
     else if (ev.type === "jev_solve") what = ev.items + (ev.unsure && ev.unsure.length ? " (" + ev.unsure.length + "?)" : "");
     else if (ev.type === "node_done") what = (ev.status !== "done" ? (L[ev.status] || ev.status) + " · " : "") + (ev.model ? short(ev.model) : "") + (ev.cost ? " · " + money(ev.cost) : "");
     else if (ev.type === "model_fallback") what = short(ev.model) + " → " + short(ev.next);
@@ -457,6 +477,8 @@ function renderReceipt(){
 function renderAll(){
   renderTree(); renderDetail(); renderMeter(); renderLog(); renderFlow(); renderReceipt();
   $("answer").innerHTML = S.answer ? md(S.answer) : '<p class="empty">' + esc(L.answerEmpty) + "</p>";
+  const w = $("warnings"); w.hidden = !S.warnings.length;
+  w.innerHTML = S.warnings.length ? "<b>" + esc(L.warnTitle) + "</b><ul>" + S.warnings.map(x => "<li>" + esc(x) + "</li>").join("") + "</ul>" : "";
   const e = $("err"); e.hidden = !S.error; e.textContent = S.error || "";
 }
 
@@ -480,7 +502,9 @@ async function run(){
 function follow(id){
   es = new EventSource("/api/events/" + encodeURIComponent(id));
   es.onmessage = m => { const ev = JSON.parse(m.data); if (ev.type === "llm_call" && ev.cost_source === "simulated") S.dry = true; apply(ev); schedule(); };
-  es.addEventListener("result", () => { stopAll(); done(); });
+  es.addEventListener("result", m => {  // the whole run: the answer in full (run_done carries only its first 30,000 characters)
+    try { const r = JSON.parse(m.data); if (r && typeof r.answer === "string") S.answer = r.answer; if (r && Array.isArray(r.warnings)) S.warnings = r.warnings.slice(); } catch (e) {}
+    stopAll(); done(); });
   es.onerror = () => { if (S.status) { stopAll(); done(); } };
 }
 async function watch(r){
@@ -535,10 +559,11 @@ async function replay(id, instant){
   S = fresh(); selected = "root"; $("req").value = run.request;
   const evs = run.events, speed = parseFloat($("speed").value) || 4;
   S.dry = (run.events || []).some(e => e.type === "llm_call" && e.cost_source === "simulated");
-  if (instant) { evs.forEach(apply); if (!S.answer) S.answer = run.answer; renderAll(); return; }
+  const full = () => { if (typeof run.answer === "string" && run.answer) S.answer = run.answer; if (Array.isArray(run.warnings)) S.warnings = run.warnings.slice(); };
+  if (instant) { evs.forEach(apply); full(); renderAll(); return; }
   let i = 0;
   const step = () => {
-    if (i >= evs.length) { if (!S.answer) S.answer = run.answer; renderAll(); return; }
+    if (i >= evs.length) { full(); renderAll(); return; }
     const ev = evs[i++]; apply(ev); schedule();
     const next = evs[i]; const wait = next ? Math.max(0, (next.t - ev.t) * 1000 / speed) : 0;
     replayTimer = setTimeout(step, Math.min(wait, 2500));
@@ -563,6 +588,8 @@ async function init(){
   }
   (info.profiles || ["all"]).forEach(p => { const o = document.createElement("option"); o.value = o.textContent = p; $("profile").append(o); });
   $("dry").checked = !!info.dry_run_default; $("dry").disabled = !info.has_key || !!info.force_dry;
+  $("key-note").hidden = !!info.has_key;
+  if (info.login) { $("logout").hidden = false; $("logout").onclick = async () => { try { await fetch("/api/logout", {method:"POST", headers:{"Content-Type":"application/json"}, body:"{}"}); } catch (e) {} location.reload(); }; }
   lang = pickLang(); applyLang();
   $("lang").addEventListener("change", e => { lang = e.target.value; try { localStorage.setItem("taskpenny.lang", lang); } catch(x) {} applyLang(); });
   $("dry").addEventListener("change", () => { $("mode").textContent = $("dry").checked || !info.has_key ? L.dryMode : L.live; });

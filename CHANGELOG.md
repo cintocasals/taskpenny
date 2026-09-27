@@ -1,5 +1,63 @@
 # Changelog
 
+## v0.7.0
+
+From an independent review of v0.6.0 (27 September 2026). Breaking: Jev is required.
+
+- **Jev is required.** Every decision in Taskpenny is Jev's, and Jev is reached through Vercel AI Gateway, so a real
+  run needs `AI_GATEWAY_API_KEY`; without it Taskpenny says so and only simulates or replays. The stand-in decider
+  (a small language model answering Jev's questions without Vercel) and `TASKPENNY_DECIDER` are gone: its
+  decisions cost more and were never measured for accuracy. Provider keys (`TASKPENNY_DIRECT`) and local models
+  (`TASKPENNY_LOCAL`) still work next to the Vercel key.
+- **Nothing fails in silence.** A result that never passes Jev's check is kept (the best attempt) and marked
+  `unverified`; a part that fails is named; every run ends `done`, `unverified`, `partial` or `failed`, with the
+  reasons in `warnings`. The API adds `taskpenny.status`, `taskpenny.warnings` and the `X-Taskpenny-Status`
+  header, answers `partial` runs with `finish_reason: "length"` (Responses: `incomplete`) and a run without an
+  answer with HTTP 502. The live page shows the warnings (idea 10: carry on, visibly) and the unverified and
+  partial tasks in the tree.
+- **The budget is a ceiling.** Every call, Jev's included, reserves the most it can cost before it is made: all
+  the output it allows, and the input counted cautiously (one token per character for non-ASCII text). Calls
+  reserve inside their slot; Jev calls run eight at a time. When the budget is nearly spent, the last answer is
+  shortened to what it can still pay, or not made. The budget message says what the run really spent.
+- **Jev answers requests that are closed questions**, not only planned subtasks: "label these messages", "yes or
+  no for each email", "rate each ticket". The cheapest model writes the question and points at the lines that
+  hold the items, and Jev answers each one. Maths, code and quiz questions never go to Jev. Several decisions
+  about the same items share one Jev call per item (proposal 15), and a decision has 50 items at most.
+- **At most 12 subtasks per run**, across every level (proposal 7), and a plan with a single part is done in one
+  go. A plan with too many parts is asked for again instead of being cut.
+- **Robust to odd answers.** A gateway or provider answer that cannot be read (HTML from a proxy, a missing or
+  wrong field) is a clear error, not a crash; an unexpected error still returns what was paid for. If the
+  assembly model fails, the parts are stitched in plan order; if a check cannot run, the answer is kept and
+  marked unverified; if the planner fails, the request is done in one go; if the run cannot be saved, the answer
+  still reaches you. A verdict Jev cannot give is asked once more and never pays for a repair.
+- **API clients**: a server without `AI_GATEWAY_API_KEY` refuses real requests (503) instead of answering with
+  simulated text, and simulated answers say so (`taskpenny.simulated`, `X-Taskpenny-Simulated`).
+  `Idempotency-Key` makes a retry get the first run's answer (the same key with another request is refused); a
+  client that disconnects without one cancels its run, and what was done is saved; streams send their headers and a keep-alive line at once; a gateway 504 on a chat call is
+  not sent again (it may have been billed). Sampling parameters are listed in `taskpenny.ignored`; `n` above 1 is
+  refused; `stream: "false"` is not a stream. Run ids get a random suffix.
+- **Security**: wrong keys are throttled for the whole server (more than 20 a minute pause key checks); sessions
+  last 30 days, survive a restart (kept hashed in the runs folder) and end with the new "Sign out" button; a slow
+  client is dropped after two minutes; deeply nested JSON gets a clear error; examples use a generated key and
+  publish the Docker port on 127.0.0.1.
+- **No third-party requests from the page.** The IBM Plex fonts (SIL Open Font License) ship with the package and
+  the demo page, instead of loading from Google Fonts.
+- The page copies and shows the whole answer (it stopped at 30,000 characters), and its Catalan and Spanish texts
+  are corrected ("Reprodueix", "Sobrecost", "propón"...).
+- `taskpenny export` and the page's export handle damaged run files; `--profile` with an unknown name gets a clear
+  error. Costs, token counts and scores a provider sends that cannot be real (negative, NaN, infinite) are not
+  trusted; a cancelled run stops its caller (`RunCancelled` carries what was done); the page shows each task's
+  tokens and time.
+- An independent second review of these changes (a separate agent, with 300 randomized runs against the budget)
+  found 15 bugs, all fixed with tests: 105 tests in all.
+- **Measured against Claude Opus 5.5** on the 50 new tasks, in the default setup: 78% cheaper (95% interval 66 to
+  86), as good or better in 50% (35 to 65). Against Sonnet 5 with Sonnet as ceiling the figures stand: about half
+  the cost, as good or better in 82%. The README now leads with both, with their intervals and limits.
+- Benchmark: `tasks.jsonl` rebuilds byte for byte again (sha256 `b9d7a83f…`); `bench/public/LICENSES.md` has the
+  attributions and licence texts of the task data; `summarize.py --ci` prints 95% bootstrap intervals and says
+  which runs ended early; `run.py --baseline-system worker` gives the baseline the same instruction as Taskpenny's
+  workers, as a control for the judge's taste.
+
 ## v0.6.0
 
 - `taskpenny demo` replays a real run shipped with the package (every step, model, cost and the answer) instead

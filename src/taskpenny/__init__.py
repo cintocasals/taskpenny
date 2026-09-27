@@ -1,3 +1,4 @@
-"""Taskpenny: split a big prompt into small tasks and send each one to the cheapest model that can do it well."""
+"""Taskpenny: each prompt, or each part of it when splitting pays, goes to the cheapest model that can do it well.
+Jev decides and checks every step, through Vercel AI Gateway."""
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"

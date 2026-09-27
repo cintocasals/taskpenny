@@ -1,13 +1,13 @@
-"""Ways to reach the models: Vercel AI Gateway (one key for everything, with Jev) or each provider's own API.
+"""Ways to reach the models. Jev makes every decision, and Jev is only reached through Vercel AI Gateway, so
+AI_GATEWAY_API_KEY is required for any real run.
 
 `connect()` looks at the keys you have and returns a gateway plus the catalog it can actually use:
 
-- AI_GATEWAY_API_KEY set: everything goes through Vercel, and Jev makes the decisions. Providers listed in
-  TASKPENNY_DIRECT (for example "anthropic,openai") go straight to their own API with their own key instead.
-- No Vercel key, but provider keys (ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, DEEPSEEK_API_KEY,
-  DASHSCOPE_API_KEY): each model goes to its provider, only those providers are used, and the cheapest
-  basic model you can reach answers the decision questions in Jev's place (less sharp, still cheap).
-- TASKPENNY_DECIDER=llm forces that stand-in decider even with a Vercel key (to compare it with Jev).
+- AI_GATEWAY_API_KEY: Jev, and every model, through Vercel. This is all you need.
+- Optional, next to it: providers listed in TASKPENNY_DIRECT (for example "anthropic,openai") go straight to
+  their own API with their own key (ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, DEEPSEEK_API_KEY,
+  DASHSCOPE_API_KEY); local models from TASKPENNY_LOCAL (Ollama) take the easiest tasks for free.
+- No Vercel key: no real run. `--dry-run` and `taskpenny demo` still work without any key.
 """
 
 from __future__ import annotations
@@ -25,8 +25,12 @@ import httpx
 
 from . import __version__
 from .catalog import Catalog, Model
-from .gateway import (RETRY_STATUS, ChatResult, EvalResult, Gateway, GatewayError, Usage, chat_timeout,
-                      confidence_from_probs)
+from .gateway import (RETRY_STATUS, ChatResult, EvalResult, Gateway, GatewayError, Usage, as_int, bad_answer,
+                      chat_fields, chat_timeout, read_json)
+
+NO_JEV = ("Taskpenny needs Jev, and Jev is reached through Vercel AI Gateway: set AI_GATEWAY_API_KEY (vercel.com -> "
+          "AI Gateway -> API Keys). Provider keys and local models can be added next to it, not instead of it. "
+          "To see Taskpenny work without a key: taskpenny demo, or --dry-run.")
 
 
 @dataclass(frozen=True)
@@ -52,8 +56,9 @@ PROVIDERS: dict[str, Provider] = {
 }
 
 
-def has_any_key() -> bool:
-    return bool(os.environ.get("AI_GATEWAY_API_KEY")) or any(provider_key(n) for n in PROVIDERS)
+def has_jev_key() -> bool:
+    """True when real runs are possible: Jev makes every decision and is reached only through Vercel."""
+    return bool(os.environ.get("AI_GATEWAY_API_KEY"))
 
 
 def provider_key(name: str) -> str | None:
@@ -87,7 +92,7 @@ async def _post(client: httpx.AsyncClient, url: str, body: dict, headers: dict, 
         else:
             ms = int((time.perf_counter() - t0) * 1000)
             if r.status_code < 400:
-                return r.json(), ms
+                return read_json(r, url.split("/")[2]), ms
             try:
                 payload = r.json()
             except ValueError:
@@ -96,7 +101,7 @@ async def _post(client: httpx.AsyncClient, url: str, body: dict, headers: dict, 
             if isinstance(msg, dict):
                 msg = msg.get("message") or json.dumps(msg)[:300]
             last = GatewayError(r.status_code, str(msg)[:500], payload)
-            if r.status_code not in RETRY_STATUS:
+            if r.status_code not in RETRY_STATUS or r.status_code == 504:  # a 504 may have been billed
                 raise last
         if attempt < retries:
             await asyncio.sleep(min(8.0, 0.6 * 2 ** attempt + random.random() * 0.3))
@@ -135,15 +140,11 @@ class DirectClient:
         headers = {"Authorization": f"Bearer {self.key}", "User-Agent": f"taskpenny/{__version__}"}
         url = self.base_url + "/chat/completions"
         data, ms = await self._send(url, body, headers, ("response_format", "reasoning_effort", "temperature"))
-        choice = (data.get("choices") or [{}])[0]
-        text = (choice.get("message") or {}).get("content") or ""
-        if isinstance(text, list):
-            text = "".join(p.get("text", "") for p in text if isinstance(p, dict))
-        u = data.get("usage") or {}
-        tin, tout = int(u.get("prompt_tokens") or 0), int(u.get("completion_tokens") or 0)
+        text, u, finish = chat_fields(data, self.p.name)
+        tin, tout = as_int(u.get("prompt_tokens")), as_int(u.get("completion_tokens"))
         return ChatResult(text=text, model=m.id, usage=Usage(tin, tout, m.cost(tin, tout),
                                                              "local" if m.provider == "ollama" else "catalog"),
-                          latency_ms=ms, raw=data)
+                          latency_ms=ms, raw=data, finish_reason=finish)
 
     async def _anthropic(self, m, messages, max_tokens, temperature, json_mode, effort) -> ChatResult:
         system = "\n\n".join(x["content"] for x in messages if x["role"] == "system")
@@ -159,12 +160,15 @@ class DirectClient:
             body["output_config"] = {"effort": effort}
         headers = {"x-api-key": self.key, "anthropic-version": "2023-06-01", "User-Agent": f"taskpenny/{__version__}"}
         data, ms = await self._send(self.base_url + "/messages", body, headers, ("output_config", "temperature"))
-        text = "".join(b.get("text", "") for b in data.get("content") or [] if b.get("type") == "text")
-        u = data.get("usage") or {}
-        tin = int(u.get("input_tokens") or 0) + int(u.get("cache_read_input_tokens") or 0)
-        tout = int(u.get("output_tokens") or 0)
+        blocks, u = data.get("content") or [], data.get("usage") or {}
+        if not isinstance(blocks, list) or not isinstance(u, dict):
+            raise bad_answer("anthropic")
+        text = "".join(str(b.get("text", "")) for b in blocks if isinstance(b, dict) and b.get("type") == "text")
+        tin = as_int(u.get("input_tokens")) + as_int(u.get("cache_read_input_tokens"))
+        tout = as_int(u.get("output_tokens"))
+        finish = "length" if data.get("stop_reason") == "max_tokens" else str(data.get("stop_reason") or "")
         return ChatResult(text=text, model=m.id, usage=Usage(tin, tout, m.cost(tin, tout), "catalog"),
-                          latency_ms=ms, raw=data)
+                          latency_ms=ms, raw=data, finish_reason=finish)
 
     async def _send(self, url, body, headers, optional) -> tuple[dict, int]:
         out = body.get("max_tokens") or body.get("max_completion_tokens")
@@ -180,104 +184,19 @@ class DirectClient:
             raise
 
 
-DECIDER_SYSTEM = (
-    "You are a decision model. You read a STATE and answer QUESTIONS about it with calibrated probabilities. "
-    "You never do the task in the state; you only decide. Reply with one JSON object and nothing else."
-)
-
-
-class LLMDecider:
-    """Answers Jev's questions (choice, yes/no, score) with a cheap language model, when Jev is not reachable."""
-
-    def __init__(self, chat, model: Model):
-        self.chat, self.model = chat, model
-
-    @staticmethod
-    def _prompt(state: Any, questions: dict[str, dict]) -> str:
-        lines = ["STATE:", state if isinstance(state, str) else json.dumps(state, ensure_ascii=False, indent=1),
-                 "", "QUESTIONS:"]
-        shape = {}
-        for name, q in questions.items():
-            if q["type"] == "boolean":
-                lines.append(f'- "{name}" (yes or no): {q["instructions"]}')
-                crit = q.get("criteria") or {}
-                if isinstance(crit, dict) and crit:
-                    lines += [f"    {k}: {v}" for k, v in crit.items()]
-                shape[name] = {"probability": "<0 to 1 that the answer is yes>"}
-            elif q["type"] == "choice":
-                lines.append(f'- "{name}" (pick one option): {q["instructions"]}')
-                lines += [f'    "{k}": {v}' for k, v in q["criteria"].items()]
-                shape[name] = {"probabilities": {k: "<0 to 1>" for k in q["criteria"]}}
-            else:
-                lines.append(f'- "{name}" (score, 0 is the lowest level): {q["instructions"]}')
-                lines += [f'    "{i}": {v}' for i, v in enumerate(q["criteria"])]
-                shape[name] = {"probabilities": {str(i): "<0 to 1>" for i in range(len(q["criteria"]))}}
-        lines += ["", "Reply with this JSON shape; probabilities of each question sum to 1:",
-                  json.dumps(shape, ensure_ascii=False)]
-        return "\n".join(lines)
-
-    async def evaluate(self, state: Any, questions: dict[str, dict]) -> EvalResult:
-        t0 = time.perf_counter()
-        r = await self.chat(self.model.id, [{"role": "system", "content": DECIDER_SYSTEM},
-                                            {"role": "user", "content": self._prompt(state, questions)}],
-                            max_tokens=300 + 80 * len(questions), temperature=0, json_mode=True, reasoning="off")
-        text = r.text
-        try:
-            data = json.loads(text[text.find("{"): text.rfind("}") + 1])
-        except ValueError:
-            data = {}
-        answers, conf = {}, {}
-        for name, q in questions.items():
-            a = data.get(name) if isinstance(data.get(name), dict) else {}
-            if q["type"] == "boolean":
-                p = _num(a.get("probability"))
-                answers[name] = {"type": "boolean", "probability": 0.5 if p is None else max(0.0, min(1.0, p))}
-                continue
-            keys = list(q["criteria"]) if q["type"] == "choice" else [str(i) for i in range(len(q["criteria"]))]
-            raw = a.get("probabilities") if isinstance(a.get("probabilities"), dict) else {}
-            probs = {k: max(0.0, _num(raw.get(k)) or 0.0) for k in keys}
-            total = sum(probs.values())
-            probs = {k: (v / total if total else 1 / len(keys)) for k, v in probs.items()}
-            best = max(keys, key=lambda k: probs[k])
-            if q["type"] == "choice":
-                answers[name] = {"type": "choice", "choice": best, "probabilities": probs}
-            else:
-                answers[name] = {"type": "score", "score": float(best), "probabilities": probs}
-            conf[name] = confidence_from_probs(probs) or 0.0
-        return EvalResult(answers=answers, confidence=conf, usage=r.usage,
-                          latency_ms=int((time.perf_counter() - t0) * 1000))
-
-
-def _num(x: Any) -> float | None:
-    try:
-        return float(x)
-    except (TypeError, ValueError):
-        if isinstance(x, str):
-            m = re.search(r"\d*\.?\d+", x)
-            return float(m.group()) if m else None
-        return None
-
-
 class MultiGateway:
-    """Sends each model to Vercel or to its provider's own API, and each decision to Jev or the stand-in."""
+    """Sends each model to its provider's own API when asked to (TASKPENNY_DIRECT, local models), everything else
+    to Vercel, and every decision to Jev."""
 
-    def __init__(self, catalog: Catalog, vercel: Gateway | None, direct: dict[str, DirectClient],
-                 decider: LLMDecider | None, client: httpx.AsyncClient):
-        self.catalog, self.vercel, self.direct, self.decider, self._client = catalog, vercel, direct, decider, client
+    def __init__(self, catalog: Catalog, vercel: Gateway, direct: dict[str, DirectClient], client: httpx.AsyncClient):
+        self.catalog, self.vercel, self.direct, self._client = catalog, vercel, direct, client
 
     def route(self, model: str) -> str:
         try:
             provider = self.catalog.get(model).provider
-        except KeyError:  # a model outside the catalog (a benchmark judge, say): only Vercel can reach it
-            if self.vercel:
-                return "vercel"
-            raise GatewayError(404, f"{model} is not in the catalog and there is no Vercel key to reach it")
-        if provider in self.direct:
-            return provider
-        if self.vercel:
+        except KeyError:  # a model outside the catalog (a benchmark judge, say): Vercel reaches it
             return "vercel"
-        raise GatewayError(401, f"no key for {provider}: set {' or '.join(PROVIDERS[provider].env)} "
-                                "or AI_GATEWAY_API_KEY" if provider in PROVIDERS else f"no route to {model}")
+        return provider if provider in self.direct else "vercel"
 
     async def chat(self, model: str, messages: list[dict], **kw) -> ChatResult:
         way = self.route(model)
@@ -286,13 +205,10 @@ class MultiGateway:
         return await self.direct[way].chat(model, messages, **kw)
 
     async def evaluate(self, state: Any, questions: dict[str, dict]) -> EvalResult:
-        if self.decider:
-            return await self.decider.evaluate(state, questions)
         return await self.vercel.evaluate(state, questions)
 
     async def aclose(self) -> None:
-        if self.vercel:
-            await self.vercel.aclose()
+        await self.vercel.aclose()
         await self._client.aclose()
 
 
@@ -333,18 +249,16 @@ PROVIDERS["ollama"] = Provider("ollama", (), "http://127.0.0.1:11434/v1", "opena
 
 
 def connect(catalog: Catalog) -> tuple[Any, Catalog]:
-    """The gateway to use with the keys found in the environment, and the catalog restricted to what it reaches."""
-    has_vercel = bool(os.environ.get("AI_GATEWAY_API_KEY"))
+    """The gateway to use with the keys found in the environment, and the catalog it reaches.
+
+    Raises GatewayError(401) without AI_GATEWAY_API_KEY: every decision is Jev's, and there is no stand-in."""
+    if not has_jev_key():
+        raise GatewayError(401, NO_JEV)
     keys = {name: k for name in PROVIDERS if (k := provider_key(name))}
     wanted = {p.strip() for p in os.environ.get("TASKPENNY_DIRECT", "").split(",") if p.strip()}
-    force_llm = os.environ.get("TASKPENNY_DECIDER", "").lower() == "llm"
     local = local_models()
-    if has_vercel and not wanted and not force_llm and not local:
+    if not (wanted & set(keys)) and not local:
         return Gateway(catalog=catalog), catalog  # the simple, default path
-    if not has_vercel and not keys and not local:
-        raise GatewayError(401, "No key found. Set AI_GATEWAY_API_KEY (one key for Jev and every model), or at "
-                                "least one provider key such as ANTHROPIC_API_KEY or OPENAI_API_KEY. "
-                                "Or run with --dry-run to see Taskpenny work without a key.")
     cat = catalog
     if local:
         profiles = dict(cat.profiles)
@@ -353,48 +267,33 @@ def connect(catalog: Catalog) -> tuple[Any, Catalog]:
         profiles["local"] = ["ollama"]
         cat = replace(cat, models=cat.models + local, profiles=profiles)
     client = httpx.AsyncClient(timeout=120.0)
-    direct_names = (wanted & set(keys)) if has_vercel else set(keys)
-    direct = {n: DirectClient(PROVIDERS[n], keys[n], cat, client) for n in sorted(direct_names)}
+    direct = {n: DirectClient(PROVIDERS[n], keys[n], cat, client) for n in sorted(wanted & set(keys))}
     if local:
         direct["ollama"] = DirectClient(PROVIDERS["ollama"], "ollama", cat, client, base_url=ollama_base(),
                                         timeout=300.0)
-    vercel = Gateway(catalog=catalog) if has_vercel else None
-    if not has_vercel:
-        cat = cat.reachable_only(set(direct))
-    decider = None
-    if force_llm or not has_vercel:
-        # the stand-in decider: the cheapest paid basic model; a local one only if nothing else is reachable
-        paid = [m for m in cat.candidates(1, cat.providers("all")) if m.provider != "ollama"]
-        model = paid[0] if paid else cat.pick(1)
-        decider = LLMDecider(None, model)
-        cat = replace(cat, decider=replace(model, tiers=()), decider_label=f"{model.id} (stand-in for Jev)")
-    gw = MultiGateway(cat, vercel, direct, decider, client)
-    if decider:
-        decider.chat = gw.chat
-    return gw, cat
+    return MultiGateway(cat, Gateway(catalog=catalog), direct, client), cat
 
 
 async def doctor(catalog: Catalog) -> list[str]:
     """What Taskpenny can reach with the keys in this environment. Names of keys only, never their values."""
     out = []
-    has_vercel = bool(os.environ.get("AI_GATEWAY_API_KEY"))
+    has_vercel = has_jev_key()
     keys = {n: k for n in PROVIDERS if (k := provider_key(n))}
-    out.append("Vercel AI Gateway key: " + ("found" if has_vercel else "not set"))
-    out.append("Provider keys: " + (", ".join(sorted(keys)) or "none"))
+    out.append("Vercel AI Gateway key (Jev): " + ("found" if has_vercel else "NOT SET, so no real run is possible"))
+    out.append("Provider keys: " + (", ".join(sorted(keys)) or "none") + " (optional)")
     try:
         gw, cat = connect(catalog)
     except GatewayError as e:
         return out + [f"Result: {e}"]
+    wanted = {p.strip() for p in os.environ.get("TASKPENNY_DIRECT", "").split(",") if p.strip()}
+    for name in sorted(wanted - set(keys) - {"ollama"}):
+        out.append(f"  Warning: TASKPENNY_DIRECT lists {name} but its key is not set: it goes through Vercel.")
     direct = sorted(getattr(gw, "direct", {}) or {})
     if direct:
-        out.append("Routes: " + ", ".join(f"{p} direct" for p in direct) +
-                   ("; everything else through Vercel" if has_vercel else ""))
+        out.append("Routes: " + ", ".join(f"{p} direct" for p in direct) + "; everything else through Vercel")
     else:
         out.append("Routes: everything through Vercel")
-    out.append("Decider: " + (cat.decider_label or f"{cat.decider.id} (Jev)"))
-    if cat.decider.provider == "ollama":
-        out.append("  Warning: the decider is a local model, so decisions and checks will be weak. "
-                   "Add AI_GATEWAY_API_KEY (Jev) or one provider key.")
+    out.append(f"Decider: {cat.decider.id} (Jev, through Vercel)")
     local = [m for m in cat.models if m.provider == "ollama"]
     if local:
         try:
@@ -408,14 +307,13 @@ async def doctor(catalog: Catalog) -> list[str]:
     out.append("Providers in use: " + ", ".join(cat.providers("all")))
     out.append("Cheapest per tier: " + ", ".join(f"{t}: {cat.pick(t).id}" for t in sorted(cat.tiers)))
     async with httpx.AsyncClient(timeout=20) as c:
-        if has_vercel:
-            try:
-                r = await c.get("https://ai-gateway.vercel.sh/v1/credits",
-                                headers={"Authorization": f"Bearer {os.environ['AI_GATEWAY_API_KEY']}"})
-                out.append(f"Vercel credit: {r.json().get('balance', '?')} USD" if r.status_code < 400
-                           else f"Vercel credit: HTTP {r.status_code}")
-            except httpx.HTTPError as e:
-                out.append(f"Vercel credit: {e}")
+        try:
+            r = await c.get("https://ai-gateway.vercel.sh/v1/credits",
+                            headers={"Authorization": f"Bearer {os.environ['AI_GATEWAY_API_KEY']}"})
+            out.append(f"Vercel credit: {r.json().get('balance', '?')} USD" if r.status_code < 400
+                       else f"Vercel credit: HTTP {r.status_code}")
+        except (httpx.HTTPError, ValueError) as e:
+            out.append(f"Vercel credit: {type(e).__name__}")
         for name in (n for n in direct if n != "ollama"):
             p, key = PROVIDERS[name], keys[name]
             base = (os.environ.get(f"{name.upper()}_BASE_URL") or p.base_url).rstrip("/")
@@ -427,8 +325,8 @@ async def doctor(catalog: Catalog) -> list[str]:
                     out.append(f"{name}: HTTP {r.status_code} listing models (check the key)")
                     continue
                 listed = {str(m.get("id", "")).removeprefix("models/") for m in r.json().get("data", [])}
-            except (httpx.HTTPError, ValueError) as e:
-                out.append(f"{name}: {e}")
+            except (httpx.HTTPError, ValueError, AttributeError) as e:
+                out.append(f"{name}: {type(e).__name__}")
                 continue
             for m in (m for m in catalog.models if m.provider == name):
                 mark = "ok" if direct_id(m) in listed else "NOT LISTED: set direct_id in models.yaml"

@@ -51,7 +51,8 @@ class Printer:
         elif typ == "route":
             line = f"route tier {ev['tier']} -> {ev['model']}" + (f" (attempt {ev['attempt']})" if ev["attempt"] > 1 else "")
         elif typ == "verify":
-            line = f"check {'ok' if ev['ok'] else 'NOT OK'} ({ev['probability']:.2f})"
+            line = ("check could not run" if ev.get("probability") is None
+                    else f"check {'ok' if ev['ok'] else 'NOT OK'} ({ev['probability']:.2f})")
         elif typ == "repair":
             line = "repair" + (" one tier up" if ev.get("tier_up") else " with feedback")
         elif typ == "jev_solve":
@@ -63,7 +64,12 @@ class Printer:
         elif typ == "aggregate":
             line = f"assemble with {ev['model']}"
         elif typ == "final_check":
-            line = f"final check {'ok' if ev['ok'] else 'NOT OK'} ({ev['probability']:.2f})"
+            line = ("final check could not run" if ev.get("probability") is None
+                    else f"final check {'ok' if ev['ok'] else 'NOT OK'} ({ev['probability']:.2f})")
+        elif typ == "warning":
+            line = self.c(f"warning: {ev['message']}", "33")
+        elif typ == "jev_extract":
+            line = f"jev   will answer {ev['items']} item(s) itself"
         elif typ == "node_failed":
             line = self.c(f"failed: {ev['message']}", "31")
         elif typ in ("budget_exceeded", "error"):
@@ -111,6 +117,11 @@ def _read_prompt(args) -> str:
 
 async def _run(args, prompt: str) -> int:
     catalog = Catalog.load(args.models)
+    local = bool(os.environ.get("TASKPENNY_LOCAL", "").strip()) and not args.dry_run
+    known = ["all"] + [p for p in catalog.profiles if p != "all"] + (["local"] if local else [])
+    if args.profile not in known:
+        print(f"taskpenny: unknown profile {args.profile!r}; known: {', '.join(known)}", file=sys.stderr)
+        return 1
     if args.dry_run:
         gw = SimulatedGateway(catalog)
     else:
@@ -124,7 +135,12 @@ async def _run(args, prompt: str) -> int:
         result = await engine.run(prompt)
     finally:
         await gw.aclose()
-    path = save(result, args.save_dir) if args.save_dir else None
+    path = None
+    if args.save_dir:
+        try:
+            path = save(result, args.save_dir)
+        except OSError as e:  # the answer is paid for: show it anyway
+            print(f"taskpenny: the run could not be saved to {args.save_dir}: {e}", file=sys.stderr)
     if args.json:
         from dataclasses import asdict
         print(json.dumps(asdict(result), ensure_ascii=False, indent=1))
@@ -133,11 +149,15 @@ async def _run(args, prompt: str) -> int:
             print("\n(dry run: simulated answers and decisions, real flow and catalog prices)", file=sys.stderr)
         print("\n" + result.answer)
         print_receipt(result, simulated=args.dry_run)
+        if result.warnings:
+            print(f"  Status: {result.status}. Taskpenny carried on, but check this:")
+            for w in result.warnings:
+                print(f"  - {w}")
         if path:
             print(f"  Run saved to {path}")
         if result.error:
             print(f"  Note: {result.error}")
-    return 0 if result.status == "done" else 2
+    return 0 if result.status in ("done", "unverified") else 2
 
 
 def _models(args) -> int:
@@ -171,8 +191,9 @@ def _models(args) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(prog="taskpenny", description="Split a big prompt into small tasks and send each one "
-                                "to the cheapest model that can do it well.")
+    p = argparse.ArgumentParser(prog="taskpenny", description="Send each prompt, or each part of it when splitting "
+                                "pays, to the cheapest model that can do it well. Jev (through Vercel AI Gateway) "
+                                "decides and checks every step.")
     p.add_argument("--version", action="version", version=f"taskpenny {__version__}")
     sub = p.add_subparsers(dest="cmd", required=True)
 
@@ -242,7 +263,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.cmd == "export":
         from .runlog import load, to_markdown
-        md = to_markdown(load(args.run))
+        try:
+            md = to_markdown(load(args.run))
+        except (OSError, ValueError, RecursionError) as e:
+            print(f"taskpenny: cannot read {args.run}: {e}", file=sys.stderr)
+            return 1
         if args.output:
             Path(args.output).write_text(md, encoding="utf-8")
         else:
