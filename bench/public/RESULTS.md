@@ -115,6 +115,12 @@ most of the hard, Catalan and Spanish requests, where Taskpenny used Opus or spl
   request needs; the baseline answers with no system message. The new tasks protect against tuning to particular
   tasks, not against tuning to the judge's taste. The control is `run.py --baseline-system worker`, which gives the
   baseline the same instruction; it has not been run yet (about $1.50 for the 50 new tasks against Sonnet 5).
+- **Taskpenny limits hidden reasoning; the baseline does not.** Reasoning tokens are billed as output. Taskpenny
+  turns hidden reasoning off on tiers 1 and 2 and sets it to low on tiers 3 and 4 (`Limits.reasoning` in
+  `engine.py`); the baseline runs with each model's default. Part of the cost gap therefore comes from that setting
+  and not from routing. The fair control is the baseline with the same instruction and the same reasoning setting,
+  reusing Taskpenny's answers and the same judge; it has not been run yet, and the figures above will be updated
+  when it is.
 - **The judge's provider.** Gemini is from a third provider, but Taskpenny's light planner is Gemini 3.8 Flash, so
   Gemini wrote the plans below tier 4. No final answer was written by Gemini: in the first run the work went to
   DeepSeek (98 calls), Anthropic (45) and OpenAI (45).

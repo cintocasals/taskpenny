@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **Public repository.** README: install from GitHub until the package is on PyPI; the Sonnet 5 comparison comes
+  first in the results table.
+- **Benchmark notes.** RESULTS.md and the README now say that Taskpenny caps hidden reasoning (off on tiers 1 and
+  2, low on tiers 3 and 4) while the baselines use each model's default, and that the control with the same
+  setting has not been run yet.
+
 ## v0.7.0
 
 From an independent review of v0.6.0 (27 September 2026). Breaking: Jev is required.

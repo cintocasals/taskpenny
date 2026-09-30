@@ -23,8 +23,8 @@ judged pair by pair by Gemini 3.1 Pro ([full report](https://github.com/cintocas
 
 | Against | Taskpenny's setup | Taskpenny cost | As good or better |
 |---|---|---|---|
-| Claude Opus 5.5 alone | the default | **78% less** (66 to 86) | **50%** (35 to 65): 1 win, 23 ties, 24 losses |
 | Claude Sonnet 5 alone | Sonnet 5 as its strongest model | **about half** (52.5%; 39 to 64) | **82%** (70 to 92): 11 wins, 30 ties, 9 losses |
+| Claude Opus 5.5 alone | the default | **78% less** (66 to 86) | **50%** (35 to 65): 1 win, 23 ties, 24 losses |
 
 The ranges are 95% intervals: fifty tasks give a direction, not a precise figure. What they say:
 
@@ -36,11 +36,14 @@ The ranges are 95% intervals: fifty tasks give a direction, not a precise figure
 - **Labelling customer messages** (first benchmark): 95% cheaper than Sonnet 5, same accuracy (96 of 100 on both
   sides).
 
-Costs are the ones the gateway reported for each call, with Jev at its list price (it was billed in the Opus run
-and free before; the report has both). Each pair was judged twice with the order swapped, and a tie includes the
-pairs where the two orders disagreed. The judge prefers longer answers, and Taskpenny's workers are told to show
-the key steps while the baselines get no instruction; the control for that is ready and not run yet. The author
-also voted blind on 20 pairs (as good or better in 18, where the judge said 14), with limits the report spells out.
+Costs are the ones the gateway reported for each call, with Jev at its list price (it was billed in the Opus run and
+free before; the report has both). Each pair was judged twice with the order swapped, and a tie includes the pairs
+where the two orders disagreed. The judge prefers longer answers, and Taskpenny's workers are told to show the key
+steps while the baselines get no instruction; the control for that is ready and not run yet. Taskpenny also caps
+hidden reasoning (off on tiers 1 and 2, low on tiers 3 and 4) while the baselines use each model's default, so part
+of the saving comes from that setting and not from routing; the control that gives the baseline the same instruction
+and reasoning setting has not been run yet. The author also voted blind on 20 pairs (as good or better in 18, where
+the judge said 14), with limits the report spells out.
 
 We publish where Taskpenny loses too: against Opus, in the first full run (only 13% cheaper than Sonnet 5), and
 in Catalan, our weakest set. It is all in the report.
@@ -48,7 +51,7 @@ in Catalan, our weakest set. It is all in the report.
 ## Try it
 
 ```bash
-pip install taskpenny
+pip install "git+https://github.com/cintocasals/taskpenny"   # PyPI (pip install taskpenny) is coming
 taskpenny demo                     # replays a real run in the terminal: no key, no cost
 ```
 
