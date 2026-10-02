@@ -209,15 +209,27 @@ async def run_taskpenny(task, catalog, gw, args) -> dict:
             "estimate": res.receipt["baseline"]["estimated_cost"], "run": asdict(res)}
 
 
-async def run_baseline(task, gw, args) -> dict:
+def baseline_reasoning(args, tier):
+    """Hidden-reasoning setting for a baseline call. 'match' mirrors Taskpenny's per-tier setting
+    (Limits.reasoning) for the tier Taskpenny chose for this task; a fixed value applies to every task;
+    None leaves the model's own default (the current behaviour)."""
+    if args.baseline_reasoning is None:
+        return None
+    if args.baseline_reasoning == "match":
+        return Limits().reasoning.get(tier)  # None when the tier is unknown: the model's default
+    return args.baseline_reasoning
+
+
+async def run_baseline(task, gw, args, tier=None) -> dict:
     t0 = time.perf_counter()
     messages = [{"role": "user", "content": task["prompt"]}]
     if args.baseline_system == "worker":  # control for the judge's taste: the same instruction Taskpenny's workers get
         from taskpenny.engine import WORKER_ROOT
         messages.insert(0, {"role": "system", "content": WORKER_ROOT})
+    reasoning = baseline_reasoning(args, tier)  # control for Taskpenny's per-tier hidden-reasoning cap
     for attempt in range(args.patience + 1):
         try:
-            r = await gw.chat(args.baseline, messages, max_tokens=args.baseline_tokens)
+            r = await gw.chat(args.baseline, messages, max_tokens=args.baseline_tokens, reasoning=reasoning)
             break
         except GatewayError as e:
             if e.status == 429 and attempt < args.patience:  # "no access at this time": wait and ask again
@@ -227,7 +239,8 @@ async def run_baseline(task, gw, args) -> dict:
                     "seconds": round(time.perf_counter() - t0, 1), "model": args.baseline}
     return {"answer": r.text, "status": "done" if r.text.strip() else "empty", "error": "", "cost": r.usage.cost,
             "cost_source": r.usage.cost_source, "tokens_out": r.usage.tokens_out,
-            "seconds": round(time.perf_counter() - t0, 1), "model": r.model, "system": args.baseline_system}
+            "seconds": round(time.perf_counter() - t0, 1), "model": r.model, "system": args.baseline_system,
+            "reasoning": reasoning}
 
 
 async def judge(task, taskpenny: str, base: str, gw, args) -> dict:
@@ -264,12 +277,13 @@ async def judge(task, taskpenny: str, base: str, gw, args) -> dict:
 async def one(task, catalog, gw, args) -> dict:
     reused = args.reuse.get(task["id"])
     reused_base = args.reuse_base.get(task["id"])
+    tier = (reused or {}).get("tier")  # Taskpenny's chosen tier for this task, for --baseline-reasoning match
 
     async def keep(x):
         return x
     # a side taken from an earlier run is not run (nor paid) again
     taskpenny, base = await asyncio.gather(keep(reused) if reused else run_taskpenny(task, catalog, gw, args),
-                                           keep(reused_base) if reused_base else run_baseline(task, gw, args))
+                                           keep(reused_base) if reused_base else run_baseline(task, gw, args, tier))
     row = {"id": task["id"], "set": task["set"], "lang": task["lang"], "category": task.get("category"),
            "taskpenny": taskpenny, "baseline": base}
     if task["judge"] == "gold":
@@ -366,6 +380,11 @@ async def main():
     ap.add_argument("--baseline-system", choices=["none", "worker"], default="none",
                     help="worker: give the baseline the same system instruction as Taskpenny's workers (a control "
                          "for the judge's preference for complete, step-by-step answers)")
+    ap.add_argument("--baseline-reasoning", default=None,
+                    help="match: give the baseline the same hidden-reasoning setting Taskpenny used on each task's "
+                         "tier (Limits.reasoning: off on tiers 1-2, low on 3-4), read from the reused Taskpenny row; "
+                         "or a fixed effort (off/low/medium/high) for every task. Default: the model's own default. "
+                         "A control for the cost gap that comes from that setting, not from routing.")
     ap.add_argument("--patience", type=int, default=2, help="when the baseline is refused (429), wait 30 s and "
                                                              "try again this many times")
     ap.add_argument("--judge", default="google/gemini-3.1-pro-preview")
