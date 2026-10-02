@@ -35,7 +35,7 @@ For every task:
    Claude Opus 5.5, if not given). The first published runs used Claude Sonnet 5, because Claude Opus refused
    most calls that day. Its cost is the real one reported by the gateway, not an estimate. With
    `--baseline-system worker` the baseline gets the same system instruction as Taskpenny's workers: a control for
-   the judge's taste for complete, step-by-step answers.
+   the judge's taste for complete, step-by-step answers. With `--baseline-reasoning match` it also gets the same hidden-reasoning setting Taskpenny uses per tier (off on tiers 1-2, low on 3-4): a control for the part of the cost gap that comes from that setting rather than from routing.
 3. **Quality**
    - `classify`: accuracy against the true labels, plus whether the answer used the exact format asked for.
    - everything else: a pairwise judge from a third provider (`google/gemini-3.1-pro-preview` by default)
@@ -61,6 +61,11 @@ python bench/public/summarize.py bench/results/public-live-<time>.jsonl         
 python bench/public/run.py --tasks bench/public/tasks-holdout.jsonl --total-budget 4          # default setup vs Opus 5.5
 python bench/public/run.py --tasks bench/public/tasks-holdout.jsonl --ceiling anthropic/claude-sonnet-5 \
     --total-budget 2                                                                          # Sonnet 5 ceiling vs Sonnet 5
+
+# the control: the baseline on equal footing (same instruction and reasoning), reusing Taskpenny's answers
+python bench/public/run.py --tasks bench/public/tasks-holdout.jsonl \
+    --baseline anthropic/claude-sonnet-5 --baseline-system worker --baseline-reasoning match \
+    --reuse-taskpenny bench/public/results/2026-09-25-holdout50.jsonl --total-budget 2
 ```
 
 Every run needs `AI_GATEWAY_API_KEY`: Taskpenny's decisions are Jev's, reached through Vercel AI Gateway.

@@ -23,13 +23,13 @@ judged pair by pair by Gemini 3.1 Pro ([full report](https://github.com/cintocas
 
 | Against | Taskpenny's setup | Taskpenny cost | As good or better |
 |---|---|---|---|
-| Claude Sonnet 5 alone | Sonnet 5 as its strongest model | **about half** (52.5%; 39 to 64) | **82%** (70 to 92): 11 wins, 30 ties, 9 losses |
+| Claude Sonnet 5 alone | Sonnet 5 as its strongest model, on equal footing (same worker instruction and reasoning cap) | **38% less** (19 to 56) | **74%** (62 to 86): 11 wins, 26 ties, 13 losses |
 | Claude Opus 5.5 alone | the default | **78% less** (66 to 86) | **50%** (35 to 65): 1 win, 23 ties, 24 losses |
 
 The ranges are 95% intervals: fifty tasks give a direction, not a precise figure. What they say:
 
-- **Sonnet-class answers for about half the price.** Basic and standard tasks cost about a tenth (89% less),
-  as good or better in 96%.
+- **Sonnet-class answers for less, on equal footing.** Basic and standard tasks cost about a tenth (88% less),
+  as good or better in 77%.
 - **Most of an Opus bill saved, but not Opus quality on hard prompts.** Taskpenny's cheap tiers were judged worse
   than Opus about half the time; critical tasks go to Opus itself and tied. If every answer must match Opus,
   Taskpenny is not there yet.
@@ -39,10 +39,11 @@ The ranges are 95% intervals: fifty tasks give a direction, not a precise figure
 Costs are the ones the gateway reported for each call, with Jev at its list price (it was billed in the Opus run and
 free before; the report has both). Each pair was judged twice with the order swapped, and a tie includes the pairs
 where the two orders disagreed. The judge prefers longer answers, and Taskpenny's workers are told to show the key
-steps while the baselines get no instruction; the control for that is ready and not run yet. Taskpenny also caps
-hidden reasoning (off on tiers 1 and 2, low on tiers 3 and 4) while the baselines use each model's default, so part
-of the saving comes from that setting and not from routing; the control that gives the baseline the same instruction
-and reasoning setting has not been run yet. The author also voted blind on 20 pairs (as good or better in 18, where
+steps while the baselines get no instruction; Taskpenny also caps hidden reasoning (off on tiers 1 and 2, low on
+tiers 3 and 4) while the baselines use each model's default, so part of the saving comes from that setting and not
+from routing. The control that gives the baseline both the same worker instruction and the same reasoning cap was
+run on 1 October 2026: on equal footing the saving is 38% (not 52.5%) and Taskpenny is as good or better in 74%
+(not 82%), which is the headline above. See the [full report](https://github.com/cintocasals/taskpenny/blob/main/bench/public/RESULTS.md). The author also voted blind on 20 pairs (as good or better in 18, where
 the judge said 14), with limits the report spells out.
 
 We publish where Taskpenny loses too: against Opus, in the first full run (only 13% cheaper than Sonnet 5), and

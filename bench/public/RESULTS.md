@@ -6,7 +6,7 @@ all costs are the ones Vercel AI Gateway reported for each call.
 | Run | Tasks | Against | Taskpenny cost | As good or better |
 |---|---|---|---|---|
 | 27 September 2026, v0.7.0, default setup | 50 new (48 compared) | **Claude Opus 5.5** | **78% less** (95% interval 66 to 86) | **50%** (35 to 65) |
-| 25 September 2026, Sonnet 5 as ceiling | the same 50 new | Claude Sonnet 5 | **52.5% less** (39 to 64) | **82%** (70 to 92) |
+| 1 October 2026, Sonnet 5 on equal footing (same instruction and reasoning cap) | the same 50 new | Claude Sonnet 5 | **38% less** (95% interval 19 to 56) | **74%** (62 to 86) |
 | 25 September 2026, first run, no ceiling | 143 (142 compared) | Claude Sonnet 5 | 13% less | 76% |
 
 The intervals come from resampling the tasks (`summarize.py --ci`): fifty tasks give a direction, not a
@@ -113,14 +113,15 @@ most of the hard, Catalan and Spanish requests, where Taskpenny used Opus or spl
 - **Taskpenny's workers get an instruction; the baseline does not.** After the 60-task core showed the judge's
   taste for fuller answers, Taskpenny's workers were told to "show the key steps briefly" and match the depth the
   request needs; the baseline answers with no system message. The new tasks protect against tuning to particular
-  tasks, not against tuning to the judge's taste. The control is `run.py --baseline-system worker`, which gives the
-  baseline the same instruction; it has not been run yet (about $1.50 for the 50 new tasks against Sonnet 5).
+  tasks, not against tuning to the judge's taste. The control is `run.py --baseline-system worker`; it was run on 1 October 2026 together with the reasoning
+  control below. See [The control: the baseline on equal footing](#the-control-the-baseline-on-equal-footing--1-october-2026).
 - **Taskpenny limits hidden reasoning; the baseline does not.** Reasoning tokens are billed as output. Taskpenny
   turns hidden reasoning off on tiers 1 and 2 and sets it to low on tiers 3 and 4 (`Limits.reasoning` in
   `engine.py`); the baseline runs with each model's default. Part of the cost gap therefore comes from that setting
-  and not from routing. The fair control is the baseline with the same instruction and the same reasoning setting,
-  reusing Taskpenny's answers and the same judge; it has not been run yet, and the figures above will be updated
-  when it is.
+  and not from routing. The fair control is the baseline with the same instruction and the same reasoning setting
+  (`--baseline-reasoning match`), reusing Taskpenny's answers and the same judge; it was run on 1 October 2026: on
+  equal footing the saving is 38% (not 52.5%) and Taskpenny is as good or better in 74% (not 82%). See [The
+  control: the baseline on equal footing](#the-control-the-baseline-on-equal-footing--1-october-2026).
 - **The judge's provider.** Gemini is from a third provider, but Taskpenny's light planner is Gemini 3.8 Flash, so
   Gemini wrote the plans below tier 4. No final answer was written by Gemini: in the first run the work went to
   DeepSeek (98 calls), Anthropic (45) and OpenAI (45).
@@ -143,14 +144,16 @@ most of the hard, Catalan and Spanish requests, where Taskpenny used Opus or spl
   the calls; that task is left out of the tables, so the comparison is not affected. The runner no longer repeats
   a call that timed out, and checks the real balance.
 
-### Checked on 50 new tasks, after two changes
+### Checked on 50 new tasks, after two changes (against Sonnet 5 at its defaults)
 
 Two changes followed this report: a **ceiling** (Taskpenny's strongest model can be set to the model you would use
 anyway, here Sonnet 5) and **splitting only when it pays** (Jev gates every part first; if the parts would not
 go to clearly cheaper models, the request is done in one go). They were checked on 50 tasks Taskpenny had never seen:
 40 more Arena-Hard prompts and 10 new four-part requests (`tasks-holdout.jsonl`, same sources and seeds recorded),
-against Sonnet 5 with the same judge. Code: commit `f567a7c`. As good or better in 82% (95% interval 70 to 92);
-52.5% cheaper with Jev at its list price (39 to 64).
+against Sonnet 5 with the same judge. Code: commit `f567a7c`. These are the figures against Sonnet 5 at its
+defaults: as good or better in 82% (95% interval 70 to 92); 52.5% cheaper with Jev at its list price (39 to 64).
+On equal footing (same worker instruction and reasoning cap) the saving is 38% and Taskpenny is as good or better
+in 74%: see [The control: the baseline on equal footing](#the-control-the-baseline-on-equal-footing--1-october-2026).
 
 | Tasks | n | Taskpenny | Sonnet 5 alone | Taskpenny cost | As good or better | Wins / ties / losses |
 |---|---|---|---|---|---|---|
@@ -189,6 +192,36 @@ model went to Jev or to the planner, so these are upper bounds. `summarize.py` p
 | Label 10 messages | 10 | $0.0007 | 97.9% less → **95.3% less** |
 
 Jev matters most where the language models are cheapest: labelling and requests split into parts.
+
+### The control: the baseline on equal footing · 1 October 2026
+
+The two caveats under "How to read all of it", measured. Claude Sonnet 5 answered the same 50 new tasks with
+Taskpenny's worker instruction (`--baseline-system worker`) and the same hidden-reasoning setting Taskpenny uses
+per tier (`--baseline-reasoning match`: off on tiers 1-2, low on 3-4), reusing Taskpenny's recorded answers and
+the same judge. Taskpenny's own answers and cost are unchanged. Spend on this control: $1.60 (baseline and judge
+only; Taskpenny reused). Raw results: `results/2026-10-01-holdout50-control.jsonl`.
+
+| Tasks | n | Taskpenny | Sonnet 5 (same instruction + reasoning) | Taskpenny cost | As good or better | Wins / ties / losses |
+|---|---|---|---|---|---|---|
+| **All 50 new tasks** | 50 | $0.446 | $0.735 | **38% less** | **74%** | 11 / 26 / 13 |
+| Arena-Hard (new sample) | 40 | $0.400 | $0.633 | **36% less** | **72%** | 10 / 19 / 11 |
+| Four asks in one message (new) | 10 | $0.046 | $0.102 | **51% less** | **80%** | 1 / 7 / 2 |
+| Basic and standard (tier 1-2) | 26 | $0.039 | $0.338 | **88% less** | **77%** | 7 / 13 / 6 |
+| Advanced (tier 3) | 13 | $0.289 | $0.268 | 1.08x as much | 69% | 2 / 7 / 4 |
+| Critical (tier 4, capped at Sonnet 5) | 5 | $0.088 | $0.072 | 1.23x as much | 80% | 1 / 3 / 1 |
+| Split into parts | 6 | $0.030 | $0.058 | **43% less** | **67%** | 1 / 3 / 2 |
+
+Saving quoted with Jev at its list price; with free Jev it is about one point higher. 95% bootstrap intervals over
+the 50 tasks (20,000 resamples): saving 38.3% (19.4 to 56.1); as good or better 74% (62 to 86).
+
+**What it says.** On equal footing the gap narrows but keeps its direction. The cost saving falls from 52.5% to
+38%: Sonnet 5's own cost drops from $0.955 to $0.735 once its hidden reasoning is capped as Taskpenny's is, so a
+large part of the headline saving came from that setting, not from routing. Quality falls from 82% to 74% as good
+or better: with the worker instruction the baseline now writes answers of almost the same length (3,415 against
+Taskpenny's 3,384 characters), so the judge's taste for length no longer counts against it. Both new figures still
+sit inside the headline's 95% intervals, so fifty tasks cannot separate them, but both point estimates move down,
+cost markedly. Given the same instruction and the same reasoning cap, Taskpenny is still cheaper and still as good
+or better in a clear majority of tasks.
 
 ## What changed after each run, and what is next
 

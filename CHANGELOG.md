@@ -5,8 +5,11 @@
 - **Public repository.** README: install from GitHub until the package is on PyPI; the Sonnet 5 comparison comes
   first in the results table.
 - **Benchmark notes.** RESULTS.md and the README now say that Taskpenny caps hidden reasoning (off on tiers 1 and
-  2, low on tiers 3 and 4) while the baselines use each model's default, and that the control with the same
-  setting has not been run yet.
+  2, low on tiers 3 and 4) while the baselines use each model's default.
+- **Equal-footing control run (1 October 2026).** The control that gives the baseline both the same worker
+  instruction and the same per-tier reasoning cap (`--baseline-reasoning match`) was run on the 50 new tasks. The
+  Sonnet 5 headline is now the equal-footing figure: about 38% cheaper (not 52.5%) and as good or better in 74%
+  (not 82%). The old figures are kept once, labelled as against Sonnet 5 at its defaults.
 
 ## v0.7.0
 
